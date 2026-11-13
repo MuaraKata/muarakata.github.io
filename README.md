@@ -20,10 +20,11 @@ Website yang memadukan **jurnal ilmiah** dan **berita** dalam satu halaman. Semu
 
 ## Penyimpanan data
 
-Artikel disimpan di **browser perangkat yang dipakai** (IndexedDB). Artinya:
+**Versi online (artifact claude.ai):** artikel disimpan di database bersama milik halaman itu, sedangkan PDF dan gambar sampul disimpan sebagai berkas di server. Semua pengunjung yang punya akses ke link bisa membaca. Hanya pemilik dan editor yang diundang yang melihat tombol *Unggah Artikel*, *Ubah*, dan *Hapus*, dan aturan database menolak penulisan dari orang lain.
+
+**Versi file (`index.html` dibuka langsung atau lewat GitHub Pages):** artikel disimpan di **browser perangkat yang dipakai** (IndexedDB). Artinya:
 
 - Data tetap ada walau browser ditutup, tetapi **tidak otomatis muncul di perangkat atau browser lain**.
 - Gunakan **Ekspor cadangan** di bagian bawah halaman untuk menyimpan file `.json`, lalu **Impor cadangan** untuk memulihkannya di perangkat lain.
 - Empat artikel bertanda **Contoh** dimuat saat pertama kali dibuka. Hapus saja kalau tidak diperlukan.
 
-Agar artikel bisa dilihat semua pengunjung dari mana saja, website ini perlu disambungkan ke backend (misalnya Firebase atau Supabase). Itu bisa jadi langkah berikutnya.

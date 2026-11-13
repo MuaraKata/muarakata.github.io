@@ -248,7 +248,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
 <footer>
   <div class="wrap">
-    <p>Artikel tersimpan di browser perangkat ini (IndexedDB). Buat cadangan secara berkala, lalu pulihkan di perangkat lain lewat tombol Impor.</p>
+    <p id="storage-note">Artikel tersimpan di browser perangkat ini (IndexedDB). Buat cadangan secara berkala, lalu pulihkan di perangkat lain lewat tombol Impor.</p>
     <div class="foot-actions">
       <button class="btn btn-sm" id="btn-export" type="button">Ekspor cadangan (.json)</button>
       <button class="btn btn-sm" id="btn-copy-backup" type="button">Salin cadangan</button>
@@ -264,55 +264,77 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 (function () {
   "use strict";
 
-  /* ================= Storage (IndexedDB, with in-memory fallback) ================= */
-  const DB_NAME = "tandeallo", STORE = "articles";
-  let db = null, memory = [];
+  /* =====================================================================
+     Storage. Two modes:
+     - "shared": opened as a published claude.ai artifact. Articles live in the
+       artifact's shared database; PDFs and covers are uploaded as assets.
+       Everyone who opens the link reads; only owner/editors write.
+     - "local":  index.html opened directly or hosted statically. Articles live
+       in this browser's IndexedDB (with an in-memory fallback).
+     - "closed": inside the artifact viewer but the shared store is unavailable
+       (e.g. signed out). Read-only, nothing to show.
+     ===================================================================== */
+  const DB_NAME = "tandeallo", STORE = "articles", COLL = "articles";
+  let idb = null, memory = [];
+  let mode = "local", shared = null, assetsCap = null, dl = null, canWrite = true;
+  let loaded = false, loadSlow = false, loadError = false, loadTimer = null;
 
-  function openDB() {
+  function idbOpen() {
     return new Promise((resolve) => {
       try {
         const req = indexedDB.open(DB_NAME, 1);
         req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: "id" });
-        req.onsuccess = () => { db = req.result; resolve(true); };
+        req.onsuccess = () => { idb = req.result; resolve(true); };
         req.onerror = () => resolve(false);
         req.onblocked = () => resolve(false);
       } catch (e) { resolve(false); }
     });
   }
-  function tx(mode) { return db.transaction(STORE, mode).objectStore(STORE); }
-  function getAll() {
-    if (!db) return Promise.resolve(memory.slice());
+  function tx(m) { return idb.transaction(STORE, m).objectStore(STORE); }
+  function idbAll() {
+    if (!idb) return Promise.resolve(memory.slice());
     return new Promise((res) => {
       try { const r = tx("readonly").getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }
       catch (e) { res(memory.slice()); }
     });
   }
-  function put(a) {
-    if (!db) { memory = memory.filter(x => x.id !== a.id).concat(a); return Promise.resolve(); }
+  function idbPut(a) {
+    if (!idb) { memory = memory.filter(x => x.id !== a.id).concat(a); return Promise.resolve(); }
     return new Promise((res, rej) => {
       try { const r = tx("readwrite").put(a); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }
       catch (e) { rej(e); }
     });
   }
-  function remove(id) {
-    if (!db) { memory = memory.filter(x => x.id !== id); return Promise.resolve(); }
+  function idbDel(id) {
+    if (!idb) { memory = memory.filter(x => x.id !== id); return Promise.resolve(); }
     return new Promise((res) => {
       try { const r = tx("readwrite").delete(id); r.onsuccess = () => res(); r.onerror = () => res(); }
       catch (e) { res(); }
     });
   }
+  function put(a) {
+    if (mode === "shared") return shared.collection(COLL).doc(a.id).set(a);
+    return idbPut(a);
+  }
+  function remove(id) {
+    if (mode === "shared") return shared.collection(COLL).doc(id).delete();
+    return idbDel(id);
+  }
+  async function dropAsset(id) {
+    if (!id || !assetsCap) return;
+    try { await assetsCap.delete(id); } catch (e) {}
+  }
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 
-  /* ================= Sample content (ditandai sebagai contoh) ================= */
+  /* ================= Sample content (local mode only, marked as examples) ================= */
   const SAMPLES = [
     {
       id: "contoh-1", type: "berita", contoh: true, rubrik: "Lingkungan",
       title: "Mangrove Pesisir Selatan Pulih, Nelayan Kepiting Kembali Panen",
       authors: "Redaksi Tandeallo", date: "2026-11-10",
       abstract: "Lima tahun setelah penanaman ulang, hutan mangrove di pesisir selatan kembali rapat. Hasil tangkapan kepiting bakau nelayan setempat naik hampir dua kali lipat.",
-      body: "Pagi itu air sedang surut. Di sela akar-akar bakau yang mencuat dari lumpur, Daeng Rahman memeriksa satu per satu bubu yang ia pasang semalam. Hampir semuanya berisi.\n\n\"Dulu kami harus ke pulau seberang untuk dapat kepiting. Sekarang cukup di sini,\" katanya.\n\n## Lima tahun penanaman\n\nPenanaman ulang dimulai pada 2021 oleh kelompok tani hutan setempat bersama pemerintah desa. Sekitar 40.000 bibit *Rhizophora* ditanam di lahan bekas tambak yang ditinggalkan.\n\n> Kuncinya bukan menanam sebanyak-banyaknya, tetapi memastikan aliran pasang surut kembali normal.\n\nKelompok tani kini merencanakan ekowisata kecil berupa jalur papan di tepi hutan, dengan pemandu dari warga desa sendiri.",
-      cover: "", pdf: "", pdfName: "", keywords: "", references: "", affiliation: "", doi: "", volume: "", issue: "", pages: ""
+      body: "Pagi itu air sedang surut. Di sela akar-akar bakau yang mencuat dari lumpur, Daeng Rahman memeriksa satu per satu bubu yang ia pasang semalam. Hampir semuanya berisi.\n\n\"Dulu kami harus ke pulau seberang untuk dapat kepiting. Sekarang cukup di sini,\" katanya.\n\n## Lima tahun penanaman\n\nPenanaman ulang dimulai pada 2021 oleh kelompok tani hutan setempat bersama pemerintah desa. Sekitar 40.000 bibit *Rhizophora* ditanam di lahan bekas tambak yang ditinggalkan.\n\n> Kuncinya bukan menanam sebanyak-banyaknya, tetapi memastikan aliran pasang surut kembali normal.\n\nKelompok tani kini merencanakan ekowisata kecil berupa jalur papan di tepi hutan, dengan pemandu dari warga desa sendiri."
     },
     {
       id: "contoh-2", type: "jurnal", contoh: true, rubrik: "Ilmu Lingkungan",
@@ -323,28 +345,25 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       keywords: "mangrove; restorasi; Scylla serrata; perikanan skala kecil",
       abstract: "Penelitian ini membandingkan kelimpahan kepiting bakau pada kawasan mangrove hasil restorasi berumur lima tahun dengan kawasan alami dan bekas tambak. Pengambilan sampel dilakukan dengan bubu lipat pada 18 stasiun selama enam bulan. Kelimpahan pada kawasan restorasi mencapai 82% dari kawasan alami dan berbeda nyata dengan bekas tambak (p < 0,05). Hasil ini menunjukkan restorasi berbasis hidrologi dapat memulihkan fungsi habitat dalam waktu relatif singkat.",
       body: "## Pendahuluan\n\nHutan mangrove merupakan habitat penting bagi kepiting bakau pada seluruh tahap hidupnya. Konversi mangrove menjadi tambak selama tiga dekade terakhir telah menurunkan produksi kepiting di banyak wilayah pesisir.\n\n## Metode\n\nPenelitian dilakukan pada Januari–Juni 2026 di tiga tipe lahan: mangrove alami, mangrove restorasi, dan bekas tambak. Setiap tipe lahan terdiri atas enam stasiun dengan sepuluh bubu lipat per stasiun.\n\n## Hasil dan Pembahasan\n\nRata-rata hasil tangkapan per unit upaya pada kawasan restorasi sebesar 3,1 ekor/bubu/malam, dibandingkan 3,8 pada kawasan alami dan 0,9 pada bekas tambak.\n\n## Kesimpulan\n\nRestorasi mangrove yang memulihkan aliran pasang surut efektif mengembalikan kelimpahan kepiting bakau.",
-      references: "Alongi, D. M. (2014). Carbon cycling and storage in mangrove forests. Annual Review of Marine Science, 6, 195–219.\nLewis, R. R. (2005). Ecological engineering for successful management and restoration of mangrove forests. Ecological Engineering, 24(4), 403–418.",
-      cover: "", pdf: "", pdfName: ""
+      references: "Alongi, D. M. (2014). Carbon cycling and storage in mangrove forests. Annual Review of Marine Science, 6, 195–219.\nLewis, R. R. (2005). Ecological engineering for successful management and restoration of mangrove forests. Ecological Engineering, 24(4), 403–418."
     },
     {
       id: "contoh-3", type: "berita", contoh: true, rubrik: "Kampus",
       title: "Seminar Nasional Literasi Data Digelar, 300 Peserta Ikut Daring",
       authors: "Tim Liputan", date: "2026-11-06",
       abstract: "Seminar membahas cara peneliti muda membagikan data penelitian secara terbuka tanpa melanggar privasi responden.",
-      body: "Seminar nasional bertema literasi data penelitian berlangsung secara hibrida dan diikuti lebih dari 300 peserta dari berbagai kampus.\n\nPembicara menekankan pentingnya anonimisasi data sebelum diunggah ke repositori terbuka.",
-      cover: "", pdf: "", pdfName: "", keywords: "", references: "", affiliation: "", doi: "", volume: "", issue: "", pages: ""
+      body: "Seminar nasional bertema literasi data penelitian berlangsung secara hibrida dan diikuti lebih dari 300 peserta dari berbagai kampus.\n\nPembicara menekankan pentingnya anonimisasi data sebelum diunggah ke repositori terbuka."
     },
     {
       id: "contoh-4", type: "jurnal", contoh: true, rubrik: "Pendidikan",
       title: "Pemanfaatan Bahasa Daerah dalam Pembelajaran Matematika Kelas Awal",
       authors: "Yohanis Patandianan; Sri Wahyuni",
       affiliation: "Fakultas Keguruan dan Ilmu Pendidikan, Universitas Kristen Indonesia Toraja",
-      date: "2026-10-15", volume: "4", issue: "2", pages: "119–134", doi: "",
+      date: "2026-10-15", volume: "4", issue: "2", pages: "119–134",
       keywords: "bahasa ibu; matematika; sekolah dasar",
       abstract: "Studi kuasi-eksperimen pada 64 siswa kelas II menunjukkan penggunaan bahasa daerah sebagai pengantar meningkatkan pemahaman konsep bilangan secara signifikan dibanding kelas kontrol.",
       body: "## Pendahuluan\n\nBanyak siswa kelas awal di daerah belum fasih berbahasa Indonesia ketika masuk sekolah.\n\n## Hasil\n\nRata-rata skor pascates kelompok eksperimen 78,4 dibanding 69,1 pada kelompok kontrol.",
-      references: "UNESCO. (2016). If you don't understand, how can you learn? Global Education Monitoring Report Policy Paper 24.",
-      cover: "", pdf: "", pdfName: ""
+      references: "UNESCO. (2016). If you don't understand, how can you learn? Global Education Monitoring Report Policy Paper 24."
     }
   ];
 
@@ -353,10 +372,12 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   const app = $("#app");
   let articles = [];
   let view = { filter: "semua", query: "" };
-  let pdfUrl = null;
+  let pdfUrl = null, lastArticleJSON = "";
+  let inFrame = false; try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
 
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const uid = () => "a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const assetUrl = (id) => /^[0-9a-f]{32}$/.test(id || "") ? "/_blob/" + id : "";
   function fmtDate(d) {
     if (!d) return "";
     const dt = new Date(d + (d.length === 10 ? "T00:00:00" : ""));
@@ -401,13 +422,16 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     if (a.doi) s += " https://doi.org/" + a.doi.replace(/^https?:\/\/doi\.org\//, "");
     return s;
   }
+  const coverSrc = (a) => a.cover || assetUrl(a.coverId);
   function coverHTML(a) {
-    if (a.cover) return '<div class="cover"><img src="' + a.cover + '" alt="" loading="lazy"></div>';
+    const src = coverSrc(a);
     const label = a.type === "jurnal" ? (issueLabel(a) || "Artikel Jurnal") : (a.rubrik || "Berita");
-    return '<div class="cover"><div class="cover-fallback ' + a.type + '">' + esc(label) + "</div></div>";
+    const fallback = '<div class="cover-fallback ' + esc(a.type) + '">' + esc(label) + "</div>";
+    if (src) return '<div class="cover">' + fallback + '<img src="' + esc(src) + '" alt="" loading="lazy" style="position:relative" onerror="this.remove()"></div>';
+    return '<div class="cover">' + fallback + "</div>";
   }
   function tags(a) {
-    let t = '<span class="tag tag-' + a.type + '">' + (a.type === "jurnal" ? "Jurnal" : "Berita") + "</span>";
+    let t = '<span class="tag tag-' + esc(a.type) + '">' + (a.type === "jurnal" ? "Jurnal" : "Berita") + "</span>";
     if (a.rubrik) t += ' <span class="meta">' + esc(a.rubrik) + "</span>";
     if (a.contoh) t += ' <span class="tag tag-contoh">Contoh</span>';
     return t;
@@ -417,7 +441,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   let toastTimer;
   function toast(msg) {
     const t = $("#toast"); t.textContent = msg; t.hidden = false;
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2800);
   }
   async function copyText(text, el) {
     try { await navigator.clipboard.writeText(text); toast("Disalin ke papan klip"); }
@@ -426,19 +450,17 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       toast("Teks sudah dipilih, tekan Ctrl+C untuk menyalin");
     }
   }
-  function dataUrlToBlobUrl(dataUrl) {
-    try {
-      const [head, b64] = dataUrl.split(",");
-      const mime = (head.match(/data:(.*?);/) || [])[1] || "application/pdf";
-      const bin = atob(b64); const arr = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-      return URL.createObjectURL(new Blob([arr], { type: mime }));
-    } catch (e) { return dataUrl; }
+  function dataUrlToBlob(dataUrl) {
+    const [head, b64] = dataUrl.split(",");
+    const mime = (head.match(/data:(.*?);/) || [])[1] || "application/octet-stream";
+    const bin = atob(b64); const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    return new Blob([arr], { type: mime });
   }
   function readFile(file) {
     return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
   }
-  function resizeImage(file, max = 1400) {
+  function resizeCanvas(file, max) {
     return readFile(file).then(src => new Promise((res) => {
       const img = new Image();
       img.onload = () => {
@@ -446,11 +468,32 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         const c = document.createElement("canvas");
         c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
         c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-        try { res(c.toDataURL("image/jpeg", 0.85)); } catch (e) { res(src); }
+        res({ canvas: c, src });
       };
-      img.onerror = () => res(src);
+      img.onerror = () => res({ canvas: null, src });
       img.src = src;
     }));
+  }
+  async function resizeToDataUrl(file) {
+    const { canvas, src } = await resizeCanvas(file, 1400);
+    if (!canvas) return src;
+    try { return canvas.toDataURL("image/jpeg", 0.85); } catch (e) { return src; }
+  }
+  async function resizeToBlob(file) {
+    const { canvas } = await resizeCanvas(file, 1600);
+    if (!canvas) return file;
+    return new Promise(res => canvas.toBlob(b => res(b || file), "image/jpeg", 0.86));
+  }
+  const canSaveFiles = () => !!dl || (mode === "local" && !inFrame);
+  async function saveFile(filename, blob) {
+    if (dl) {
+      try { await dl.save({ filename, data: blob }); }
+      catch (e) { toast("Berkas tidak disimpan"); }
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a"); link.href = url; link.download = filename;
+    document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
   /* ================= Views ================= */
@@ -458,6 +501,13 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     document.querySelectorAll("[data-nav]").forEach(a => {
       if (a.dataset.nav === name && name !== "kirim") a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
     });
+  }
+
+  function statusBox() {
+    if (mode === "closed") return '<div class="empty">Masuk ke akun claude.ai Anda untuk membaca artikel di Tandeallo.</div>';
+    if (!loaded) return '<div class="empty">' + (loadSlow ? "Artikel belum bisa dimuat. Periksa koneksi internet; halaman akan diperbarui sendiri begitu tersambung." : "Memuat artikel…") + "</div>";
+    if (loadError) return '<div class="empty">Artikel tidak bisa dimuat saat ini. Muat ulang halaman beberapa saat lagi.</div>';
+    return "";
   }
 
   function renderHome(filter) {
@@ -477,7 +527,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         '<aside class="issue"><div class="issue-head"><h3>Terbitan Jurnal Terbaru</h3><span class="meta">' + esc(journals[0] ? issueLabel(journals[0]) : "") + "</span></div>" +
           (journals.length ? journals.map(j =>
             '<a class="issue-item" href="#artikel-' + esc(j.id) + '"><span class="meta">' + esc(j.pages ? "hlm. " + j.pages : fmtDate(j.date)) + (j.doi ? " · DOI" : "") + "</span><strong>" + esc(j.title) + '</strong><span class="auth">' + esc(authorLine(j)) + "</span></a>").join("")
-            : '<p class="meta">Belum ada artikel jurnal. <a href="#kirim">Unggah yang pertama</a>.</p>') +
+            : '<p class="meta">Belum ada artikel jurnal.' + (canWrite ? ' <a href="#kirim">Unggah yang pertama</a>.' : "") + "</p>") +
         "</aside></section>";
     }
 
@@ -493,31 +543,37 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
     $("#q").addEventListener("input", (e) => { view.query = e.target.value; renderFeed(); });
     document.querySelectorAll("[data-filter]").forEach(b => b.addEventListener("click", () => {
-      const f = b.dataset.filter; location.hash = f === "semua" ? "" : f;
-      if (f === "semua") renderHome("semua");
+      const f = b.dataset.filter;
+      if (f === "semua") { history.replaceState(null, "", location.pathname + location.search); renderHome("semua"); }
+      else location.hash = f;
     }));
     renderFeed();
   }
 
   function renderFeed() {
+    const feed = $("#feed"); if (!feed) return;
     const q = view.query.trim().toLowerCase();
     let list = sorted(articles).filter(a => view.filter === "semua" || a.type === view.filter);
     if (q) list = list.filter(a => [a.title, a.authors, a.keywords, a.abstract, a.rubrik, a.body].join(" ").toLowerCase().includes(q));
     const titles = { semua: "Semua Artikel", berita: "Berita", jurnal: "Artikel Jurnal" };
     $("#feed-title").textContent = q ? 'Hasil pencarian "' + view.query.trim() + '"' : titles[view.filter];
     $("#feed-count").textContent = list.length + " artikel";
-    $("#feed").innerHTML = list.length ? list.map(cardHTML).join("") :
-      '<div class="empty">' + (q ? "Tidak ada artikel yang cocok. Coba kata kunci lain." : 'Belum ada artikel di sini. <a href="#kirim">Unggah artikel pertama</a>.') + "</div>";
+    const status = statusBox();
+    if (status && !list.length) { feed.innerHTML = status; return; }
+    feed.innerHTML = list.length ? list.map(cardHTML).join("") :
+      '<div class="empty">' + (q ? "Tidak ada artikel yang cocok. Coba kata kunci lain." :
+        "Belum ada artikel di sini." + (canWrite ? ' <a href="#kirim">Unggah artikel pertama</a>.' : " Kembali lagi nanti.")) + "</div>";
   }
 
   function cardHTML(a) {
+    const hasPdf = a.pdf || a.pdfId;
     if (a.type === "jurnal") {
       return '<a class="card jurnal" href="#artikel-' + esc(a.id) + '"><div class="card-body">' +
         '<div class="row">' + tags(a) + "</div>" +
         "<h3>" + esc(a.title) + "</h3>" +
         '<span class="meta">' + esc(authorLine(a)) + "</span>" +
         (a.abstract ? '<span class="abs-label">Abstrak</span><p>' + esc(a.abstract) + "</p>" : "") +
-        '<div class="card-foot meta">' + esc(issueLabel(a) || fmtDate(a.date)) + (a.pdf ? " · PDF" : "") + (a.doi ? " · doi:" + esc(a.doi) : "") + "</div>" +
+        '<div class="card-foot meta">' + esc(issueLabel(a) || fmtDate(a.date)) + (hasPdf ? " · PDF" : "") + (a.doi ? " · doi:" + esc(a.doi) : "") + "</div>" +
         "</div></a>";
     }
     return '<a class="card berita" href="#artikel-' + esc(a.id) + '">' + coverHTML(a) + '<div class="card-body">' +
@@ -530,15 +586,24 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
   function renderArticle(id) {
     const a = articles.find(x => x.id === id);
-    if (!a) { app.innerHTML = '<div class="wrap" style="padding-block:48px"><div class="empty">Artikel tidak ditemukan. <a href="#">Kembali ke beranda</a></div></div>'; return; }
+    if (!a) {
+      lastArticleJSON = "";
+      const status = statusBox();
+      app.innerHTML = '<div class="wrap" style="padding-block:48px">' + (status || '<div class="empty">Artikel tidak ditemukan. <a href="#">Kembali ke beranda</a></div>') + "</div>";
+      return;
+    }
+    lastArticleJSON = JSON.stringify(a);
     setNav(a.type);
     if (pdfUrl && pdfUrl.startsWith("blob:")) URL.revokeObjectURL(pdfUrl);
-    pdfUrl = a.pdf ? dataUrlToBlobUrl(a.pdf) : null;
+    pdfUrl = null;
+    if (a.pdf) { try { pdfUrl = URL.createObjectURL(dataUrlToBlob(a.pdf)); } catch (e) { pdfUrl = null; } }
+    else if (a.pdfId) pdfUrl = assetUrl(a.pdfId);
+    const pdfName = a.pdfName || "artikel.pdf";
     const isJ = a.type === "jurnal";
     const refList = String(a.references || "").split("\n").map(x => x.trim()).filter(Boolean);
 
     app.innerHTML =
-      '<article class="wrap article ' + a.type + '"><div class="article-main">' +
+      '<article class="wrap article ' + esc(a.type) + '"><div class="article-main">' +
         '<a class="back" href="#' + (isJ ? "jurnal" : "berita") + '">← Kembali ke ' + (isJ ? "Jurnal" : "Berita") + "</a>" +
         '<div class="eyebrow">' + tags(a) + (isJ && issueLabel(a) ? '<span class="meta">' + esc(issueLabel(a)) + "</span>" : "") + "</div>" +
         "<h1>" + esc(a.title) + "</h1>" +
@@ -556,8 +621,8 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       "</div>" +
       '<aside class="rail">' +
         (pdfUrl ? '<div class="panel"><h3>Naskah lengkap</h3>' +
-          '<a class="btn btn-primary" href="' + pdfUrl + '" download="' + esc(a.pdfName || "artikel.pdf") + '" target="_blank" rel="noopener">Unduh PDF</a>' +
-          '<button class="btn" type="button" id="btn-view-pdf">Tampilkan PDF di halaman</button>' +
+          '<button class="btn btn-primary" type="button" id="btn-view-pdf">Tampilkan PDF di halaman</button>' +
+          (canSaveFiles() ? '<button class="btn" type="button" id="btn-dl-pdf">Unduh PDF</button>' : "") +
           '<span class="meta">' + esc(a.pdfName || "") + "</span></div>" : "") +
         (isJ ? '<div class="panel"><h3>Informasi artikel</h3><dl>' +
           (a.volume ? "<dt>Volume</dt><dd>" + esc(a.volume) + "</dd>" : "") +
@@ -568,45 +633,66 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
           "<dt>Terbit</dt><dd>" + fmtDate(a.date) + "</dd></dl></div>" +
           '<div class="panel"><h3>Cara mengutip (APA)</h3><div class="cite-box" id="cite">' + esc(citation(a)) + '</div><button class="btn btn-sm" type="button" id="btn-cite">Salin kutipan</button></div>'
           : "") +
-        '<div class="panel"><h3>Kelola</h3>' +
+        (canWrite ? '<div class="panel"><h3>Kelola</h3>' +
           '<a class="btn btn-sm" href="#ubah-' + esc(a.id) + '">Ubah artikel</a>' +
           '<button class="btn btn-sm btn-danger" type="button" id="btn-del">Hapus artikel</button>' +
-        "</div>" +
+        "</div>" : "") +
       "</aside></article>";
 
     const del = $("#btn-del");
-    del.addEventListener("click", async () => {
+    if (del) del.addEventListener("click", async () => {
       if (!del.classList.contains("armed")) {
         del.classList.add("armed"); del.textContent = "Klik lagi untuk menghapus";
         setTimeout(() => { if (del.isConnected) { del.classList.remove("armed"); del.textContent = "Hapus artikel"; } }, 4000);
         return;
       }
-      await remove(a.id); articles = articles.filter(x => x.id !== a.id);
-      toast("Artikel dihapus"); location.hash = isJ ? "jurnal" : "berita";
+      del.disabled = true;
+      try {
+        await remove(a.id);
+        articles = articles.filter(x => x.id !== a.id);
+        if (mode === "shared") { await dropAsset(a.coverId); await dropAsset(a.pdfId); }
+        toast("Artikel dihapus"); location.hash = isJ ? "jurnal" : "berita";
+      } catch (e) { del.disabled = false; toast("Artikel gagal dihapus. Coba lagi."); }
     });
     const c = $("#btn-cite"); if (c) c.addEventListener("click", () => copyText(citation(a), $("#cite")));
     const v = $("#btn-view-pdf");
     if (v) v.addEventListener("click", () => {
       const slot = $("#pdf-slot");
       if (slot.firstChild) { slot.innerHTML = ""; v.textContent = "Tampilkan PDF di halaman"; return; }
-      slot.innerHTML = '<iframe class="pdf-frame" title="Naskah PDF" src="' + pdfUrl + '"></iframe>';
+      slot.innerHTML = '<iframe class="pdf-frame" title="Naskah PDF" src="' + esc(pdfUrl) + '"></iframe>';
       v.textContent = "Sembunyikan PDF"; slot.scrollIntoView({ behavior: "smooth", block: "start" });
     });
-    window.scrollTo(0, 0);
+    const d = $("#btn-dl-pdf");
+    if (d) d.addEventListener("click", async () => {
+      try {
+        const blob = a.pdf ? dataUrlToBlob(a.pdf) : await (await fetch(pdfUrl)).blob();
+        await saveFile(pdfName, blob);
+      } catch (e) { toast("PDF tidak dapat diunduh saat ini"); }
+    });
   }
 
   function renderForm(editId) {
+    if (!canWrite) { toast("Hanya pengelola yang dapat mengunggah artikel"); location.hash = ""; return; }
     setNav("kirim");
     const a = editId ? articles.find(x => x.id === editId) : null;
-    if (editId && !a) { location.hash = ""; return; }
+    if (editId && !a) {
+      app.innerHTML = '<div class="wrap" style="padding-block:48px">' + (statusBox() || '<div class="empty">Artikel tidak ditemukan. <a href="#">Kembali ke beranda</a></div>') + "</div>";
+      return;
+    }
     const d = a || { type: "berita", date: new Date().toISOString().slice(0, 10) };
-    const draft = { cover: d.cover || "", pdf: d.pdf || "", pdfName: d.pdfName || "" };
+    const draft = {
+      cover: d.cover || "", coverId: d.coverId || "", coverBlob: null,
+      pdf: d.pdf || "", pdfId: d.pdfId || "", pdfBlob: null, pdfName: d.pdfName || ""
+    };
     const v = (k) => esc(d[k] || "");
+    const previewSrc = draft.cover || assetUrl(draft.coverId);
+    const hasPdf = draft.pdf || draft.pdfId;
 
     app.innerHTML =
       '<div class="wrap"><div class="form-page">' +
       "<h1>" + (a ? "Ubah artikel" : "Unggah artikel") + "</h1>" +
-      "<p>Pilih jenis tulisan. Berita cocok untuk liputan dan opini; Jurnal untuk naskah ilmiah lengkap dengan abstrak, DOI, dan berkas PDF.</p>" +
+      "<p>Pilih jenis tulisan. Berita cocok untuk liputan dan opini; Jurnal untuk naskah ilmiah lengkap dengan abstrak, DOI, dan berkas PDF." +
+        (mode === "shared" ? " Artikel yang diterbitkan langsung terlihat oleh semua pengunjung." : "") + "</p>" +
       '<form class="submit" id="f" novalidate>' +
         '<div class="type-pick" role="radiogroup" aria-label="Jenis artikel">' +
           '<label class="berita"><input type="radio" name="type" id="type-berita" value="berita"' + (d.type === "berita" ? " checked" : "") + '><strong>Berita</strong><span>Liputan, opini, kabar kampus</span></label>' +
@@ -640,12 +726,12 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         "</fieldset>" +
         "<fieldset><legend>Berkas</legend>" +
           '<div class="grid-2">' +
-            '<div class="drop" id="drop-cover"><label for="cover">Gambar sampul (JPG/PNG)</label><input type="file" id="cover" accept="image/*"><img class="preview" id="cover-preview" alt="Pratinjau sampul"' + (draft.cover ? ' src="' + draft.cover + '"' : " hidden") + '><button type="button" class="btn btn-sm" id="cover-clear"' + (draft.cover ? "" : " hidden") + ">Hapus gambar</button></div>" +
-            '<div class="drop" id="drop-pdf"><label for="pdf">Naskah PDF</label><input type="file" id="pdf" accept="application/pdf,.pdf"><span class="meta" id="pdf-name">' + esc(draft.pdfName || "Belum ada berkas") + '</span><button type="button" class="btn btn-sm" id="pdf-clear"' + (draft.pdf ? "" : " hidden") + ">Hapus PDF</button></div>" +
+            '<div class="drop" id="drop-cover"><label for="cover">Gambar sampul (JPG/PNG)</label><input type="file" id="cover" accept="image/*"><img class="preview" id="cover-preview" alt="Pratinjau sampul"' + (previewSrc ? ' src="' + esc(previewSrc) + '"' : " hidden") + '><button type="button" class="btn btn-sm" id="cover-clear"' + (previewSrc ? "" : " hidden") + ">Hapus gambar</button></div>" +
+            '<div class="drop" id="drop-pdf"><label for="pdf">Naskah PDF (maks. 20 MB)</label><input type="file" id="pdf" accept="application/pdf,.pdf"><span class="meta" id="pdf-name">' + esc(draft.pdfName || "Belum ada berkas") + '</span><button type="button" class="btn btn-sm" id="pdf-clear"' + (hasPdf ? "" : " hidden") + ">Hapus PDF</button></div>" +
           "</div>" +
         "</fieldset>" +
         '<p class="error" id="form-error" hidden></p>' +
-        '<div class="form-actions"><button class="btn btn-primary" type="submit">' + (a ? "Simpan perubahan" : "Terbitkan") + '</button><a class="btn" href="' + (a ? "#artikel-" + esc(a.id) : "#") + '">Batal</a></div>' +
+        '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-submit">' + (a ? "Simpan perubahan" : "Terbitkan") + '</button><a class="btn" href="' + (a ? "#artikel-" + esc(a.id) : "#") + '">Batal</a></div>' +
       "</form></div></div>";
 
     const form = $("#f");
@@ -659,20 +745,28 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
     async function setCover(file) {
       if (!file || !file.type.startsWith("image/")) return;
-      draft.cover = await resizeImage(file);
-      const p = $("#cover-preview"); p.src = draft.cover; p.hidden = false; $("#cover-clear").hidden = false;
+      const p = $("#cover-preview");
+      if (mode === "shared") {
+        draft.coverBlob = await resizeToBlob(file); draft.cover = "";
+        p.src = URL.createObjectURL(draft.coverBlob);
+      } else {
+        draft.cover = await resizeToDataUrl(file); p.src = draft.cover;
+      }
+      p.hidden = false; $("#cover-clear").hidden = false;
     }
     async function setPdf(file) {
       if (!file) return;
       if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { toast("Berkas harus berformat PDF"); return; }
-      if (file.size > 25 * 1024 * 1024) { toast("PDF terlalu besar (maks. 25 MB)"); return; }
-      draft.pdf = await readFile(file); draft.pdfName = file.name;
+      if (file.size > 20 * 1024 * 1024) { toast("PDF terlalu besar (maks. 20 MB)"); return; }
+      if (mode === "shared") { draft.pdfBlob = file; draft.pdf = ""; }
+      else draft.pdf = await readFile(file);
+      draft.pdfName = file.name;
       $("#pdf-name").textContent = file.name + " · " + (file.size / 1024 / 1024).toFixed(1) + " MB"; $("#pdf-clear").hidden = false;
     }
     $("#cover").addEventListener("change", e => setCover(e.target.files[0]));
     $("#pdf").addEventListener("change", e => setPdf(e.target.files[0]));
-    $("#cover-clear").addEventListener("click", () => { draft.cover = ""; $("#cover-preview").hidden = true; $("#cover-clear").hidden = true; $("#cover").value = ""; });
-    $("#pdf-clear").addEventListener("click", () => { draft.pdf = ""; draft.pdfName = ""; $("#pdf-name").textContent = "Belum ada berkas"; $("#pdf-clear").hidden = true; $("#pdf").value = ""; });
+    $("#cover-clear").addEventListener("click", () => { draft.cover = ""; draft.coverId = ""; draft.coverBlob = null; $("#cover-preview").hidden = true; $("#cover-clear").hidden = true; $("#cover").value = ""; });
+    $("#pdf-clear").addEventListener("click", () => { draft.pdf = ""; draft.pdfId = ""; draft.pdfBlob = null; draft.pdfName = ""; $("#pdf-name").textContent = "Belum ada berkas"; $("#pdf-clear").hidden = true; $("#pdf").value = ""; });
     [["#drop-cover", setCover], ["#drop-pdf", setPdf]].forEach(([sel, fn]) => {
       const z = $(sel);
       z.addEventListener("dragover", e => { e.preventDefault(); z.classList.add("over"); });
@@ -685,86 +779,171 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       const fd = new FormData(form);
       const get = (k) => String(fd.get(k) || "").trim();
       const err = $("#form-error");
+      const showErr = (m) => { err.textContent = m; err.hidden = false; err.scrollIntoView({ block: "center" }); };
       const missing = [];
       if (!get("title")) missing.push("judul");
       if (!get("authors")) missing.push("penulis");
-      if (!get("body") && !get("abstract") && !draft.pdf) missing.push("isi, ringkasan, atau berkas PDF");
-      if (missing.length) { err.textContent = "Lengkapi dulu: " + missing.join(", ") + "."; err.hidden = false; err.scrollIntoView({ block: "center" }); return; }
+      if (!get("body") && !get("abstract") && !(draft.pdf || draft.pdfId || draft.pdfBlob)) missing.push("isi, ringkasan, atau berkas PDF");
+      if (missing.length) { showErr("Lengkapi dulu: " + missing.join(", ") + "."); return; }
       err.hidden = true;
-      const type = get("type") || "berita";
-      const rec = {
-        id: a ? a.id : uid(), created: a ? a.created || Date.now() : Date.now(), contoh: false, type,
-        title: get("title"), authors: get("authors"), rubrik: get("rubrik"), date: get("date") || new Date().toISOString().slice(0, 10),
-        abstract: get("abstract"), body: get("body"),
-        affiliation: type === "jurnal" ? get("affiliation") : "", volume: type === "jurnal" ? get("volume") : "",
-        issue: type === "jurnal" ? get("issue") : "", pages: type === "jurnal" ? get("pages") : "",
-        doi: type === "jurnal" ? get("doi").replace(/^https?:\/\/(dx\.)?doi\.org\//, "") : "",
-        keywords: type === "jurnal" ? get("keywords") : "", references: type === "jurnal" ? get("references") : "",
-        cover: draft.cover, pdf: draft.pdf, pdfName: draft.pdfName
-      };
+      const btn = $("#btn-submit"); const label = btn.textContent;
+      btn.disabled = true; btn.textContent = "Menyimpan…";
       try {
+        if (mode === "shared" && (draft.coverBlob || draft.pdfBlob)) {
+          if (!assetsCap) throw { code: "no_assets" };
+          if (draft.coverBlob) { btn.textContent = "Mengunggah gambar…"; draft.coverId = (await assetsCap.upload(draft.coverBlob, { type: "image/jpeg" })).id; draft.coverBlob = null; }
+          if (draft.pdfBlob) { btn.textContent = "Mengunggah PDF…"; draft.pdfId = (await assetsCap.upload(draft.pdfBlob, { type: "application/pdf" })).id; draft.pdfBlob = null; }
+          btn.textContent = "Menyimpan…";
+        }
+        const type = get("type") || "berita";
+        const isJ = type === "jurnal";
+        const rec = {
+          id: a ? a.id : uid(), created: a ? a.created || Date.now() : Date.now(), contoh: false, type,
+          title: get("title"), authors: get("authors"), rubrik: get("rubrik"), date: get("date") || new Date().toISOString().slice(0, 10),
+          abstract: get("abstract"), body: get("body"),
+          affiliation: isJ ? get("affiliation") : "", volume: isJ ? get("volume") : "",
+          issue: isJ ? get("issue") : "", pages: isJ ? get("pages") : "",
+          doi: isJ ? get("doi").replace(/^https?:\/\/(dx\.)?doi\.org\//, "") : "",
+          keywords: isJ ? get("keywords") : "", references: isJ ? get("references") : "",
+          pdfName: (draft.pdf || draft.pdfId) ? draft.pdfName : ""
+        };
+        if (mode === "shared") { rec.coverId = draft.coverId; rec.pdfId = draft.pdfId; }
+        else { rec.cover = draft.cover; rec.pdf = draft.pdf; }
         await put(rec);
         articles = articles.filter(x => x.id !== rec.id).concat(rec);
+        if (mode === "shared" && a) {
+          if (a.coverId && a.coverId !== rec.coverId) await dropAsset(a.coverId);
+          if (a.pdfId && a.pdfId !== rec.pdfId) await dropAsset(a.pdfId);
+        }
         toast(a ? "Perubahan disimpan" : "Artikel diterbitkan");
         location.hash = "artikel-" + rec.id;
       } catch (ex) {
-        err.textContent = "Gagal menyimpan. Ruang penyimpanan browser mungkin penuh; coba perkecil berkas PDF atau hapus artikel lama.";
-        err.hidden = false;
+        btn.disabled = false; btn.textContent = label;
+        const code = ex && ex.code;
+        if (code === "no_assets") showErr("Berkas tidak dapat diunggah dari tampilan ini. Hapus gambar/PDF lalu terbitkan, atau buka halaman sebagai pemilik.");
+        else if (code === "too_large") showErr("Berkas terlalu besar. Batasnya 20 MB per berkas.");
+        else if (code === "quota_or_state" || code === "quota_exceeded") showErr("Ruang penyimpanan penuh. Hapus beberapa artikel lama lalu coba lagi.");
+        else if (code === "invalid_argument" && mode === "shared") showErr("Artikel tidak tersimpan. Teksnya mungkin terlalu panjang (maks. sekitar 250 KB), atau akun Anda tidak punya izin mengubah situs ini.");
+        else showErr("Artikel gagal disimpan. Periksa koneksi lalu coba lagi.");
       }
     });
-    window.scrollTo(0, 0);
   }
 
   /* ================= Router ================= */
-  function route() {
+  function route(scroll) {
     const h = decodeURIComponent(location.hash.replace(/^#/, ""));
-    if (h.startsWith("artikel-")) return renderArticle(h.slice(8));
-    if (h.startsWith("ubah-")) return renderForm(h.slice(5));
-    if (h === "kirim") return renderForm(null);
-    if (h === "berita" || h === "jurnal") { if (view.filter !== h) view.query = ""; return renderHome(h); }
-    view.query = view.filter === "semua" ? view.query : "";
-    renderHome("semua");
-    window.scrollTo(0, 0);
+    if (h.startsWith("artikel-")) renderArticle(h.slice(8));
+    else if (h.startsWith("ubah-")) renderForm(h.slice(5));
+    else if (h === "kirim") renderForm(null);
+    else if (h === "berita" || h === "jurnal") { if (view.filter !== h) view.query = ""; renderHome(h); }
+    else { if (view.filter !== "semua") view.query = ""; renderHome("semua"); }
+    if (scroll) window.scrollTo(0, 0);
   }
-  window.addEventListener("hashchange", route);
+  window.addEventListener("hashchange", () => route(true));
+
+  // Re-render after live data changes without disturbing what the reader is doing.
+  function refresh() {
+    const h = location.hash.replace(/^#/, "");
+    if (h === "kirim" || h.startsWith("ubah-")) {
+      if (!$("#f")) route(false); // the form was waiting for data
+      return;
+    }
+    if (h.startsWith("artikel-")) {
+      const a = articles.find(x => x.id === decodeURIComponent(h.slice(8)));
+      if (a && JSON.stringify(a) === lastArticleJSON) return;
+      route(false); return;
+    }
+    if (document.activeElement && document.activeElement.id === "q") { renderFeed(); return; }
+    route(false);
+  }
 
   /* ================= Backup ================= */
   function backupJSON() { return JSON.stringify({ app: "tandeallo", version: 1, exported: new Date().toISOString(), articles }, null, 2); }
-  let inFrame = false; try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
-  const exp = $("#btn-export");
-  if (inFrame) exp.hidden = true;
-  exp.addEventListener("click", () => {
-    const url = URL.createObjectURL(new Blob([backupJSON()], { type: "application/json" }));
-    const link = document.createElement("a"); link.href = url; link.download = "tandeallo-cadangan-" + new Date().toISOString().slice(0, 10) + ".json";
-    document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
-    toast("Cadangan diunduh");
+  $("#btn-export").addEventListener("click", () => {
+    saveFile("tandeallo-cadangan-" + new Date().toISOString().slice(0, 10) + ".json", new Blob([backupJSON()], { type: "application/json" }));
   });
   $("#btn-copy-backup").addEventListener("click", () => copyText(backupJSON()));
   $("#import-file").addEventListener("change", async (e) => {
     const file = e.target.files[0]; if (!file) return;
+    e.target.value = "";
+    let list;
     try {
       const data = JSON.parse(await file.text());
-      const list = Array.isArray(data) ? data : data.articles;
+      list = Array.isArray(data) ? data : data.articles;
       if (!Array.isArray(list)) throw new Error("format");
-      let n = 0;
-      for (const a of list) { if (a && a.id && a.title) { await put(a); n++; } }
-      articles = await getAll(); toast(n + " artikel dipulihkan"); route();
-    } catch (ex) { toast("Berkas cadangan tidak dikenali"); }
-    e.target.value = "";
+    } catch (ex) { toast("Berkas cadangan tidak dikenali"); return; }
+    toast("Memulihkan " + list.length + " artikel…");
+    let n = 0, skipped = 0;
+    for (const raw of list) {
+      if (!raw || !raw.id || !raw.title) continue;
+      const a = Object.assign({}, raw);
+      try {
+        if (mode === "shared") {
+          // Local backups embed files as data URLs; move them into asset storage.
+          if (a.cover && assetsCap) { try { a.coverId = (await assetsCap.upload(dataUrlToBlob(a.cover), { type: "image/jpeg" })).id; } catch (x) {} }
+          if (a.pdf && assetsCap) { try { a.pdfId = (await assetsCap.upload(dataUrlToBlob(a.pdf), { type: "application/pdf" })).id; } catch (x) {} }
+          delete a.cover; delete a.pdf;
+          a.id = String(a.id).replace(/[^A-Za-z0-9_\-.~:@+]/g, "-");
+        }
+        await put(a); n++;
+      } catch (ex) { skipped++; }
+    }
+    if (mode === "local") articles = await idbAll();
+    toast(n + " artikel dipulihkan" + (skipped ? ", " + skipped + " gagal" : ""));
+    route(false);
   });
+
+  function applyModeUI() {
+    $('[data-nav="kirim"]').hidden = !canWrite;
+    $('label[for="import-file"]').hidden = !canWrite;
+    $("#btn-export").hidden = !canSaveFiles();
+    const note = $("#storage-note");
+    if (mode === "shared") note.textContent = canWrite
+      ? "Artikel tersimpan di server dan langsung terlihat oleh semua pengunjung. Hanya Anda dan editor yang Anda undang yang dapat mengunggah, mengubah, atau menghapus."
+      : "Tandeallo memadukan berita dan artikel jurnal. Kutipan APA tersedia di setiap artikel jurnal.";
+    else if (mode === "closed") note.textContent = "Masuk ke akun claude.ai untuk membaca artikel.";
+  }
 
   /* ================= Boot ================= */
   (async function boot() {
-    const ok = await openDB();
-    articles = await getAll();
+    const c = window.claude;
+    if (c && typeof c.use === "function") {
+      const use = (n) => Promise.resolve().then(() => c.use(n)).catch(() => null);
+      const [dbNs, assetsNs, userNs, dlNs] = await Promise.all([use("db"), use("assets"), use("user"), use("downloads")]);
+      dl = dlNs;
+      if (dbNs) {
+        mode = "shared"; shared = dbNs; assetsCap = assetsNs;
+        canWrite = userNs ? await Promise.resolve().then(() => userNs.canEdit()).catch(() => false) : false;
+      } else {
+        mode = "closed"; canWrite = false; loaded = true;
+      }
+    }
+
+    if (mode === "shared") {
+      applyModeUI();
+      loadTimer = setTimeout(() => { if (!loaded) { loadSlow = true; refresh(); } }, 10000);
+      shared.collection(COLL).onSnapshot((snap) => {
+        articles = snap.docs.map(d => Object.assign({}, d.data(), { id: d.id }));
+        if (!snap.metadata.fromCache) { loaded = true; loadSlow = false; clearTimeout(loadTimer); }
+        refresh();
+      }, () => { loaded = true; loadError = true; clearTimeout(loadTimer); refresh(); });
+      route(true);
+      return;
+    }
+    if (mode === "closed") { applyModeUI(); route(true); return; }
+
+    const ok = await idbOpen();
+    articles = await idbAll();
     if (!articles.length && !lsGet("tandeallo-seeded")) {
-      for (const s of SAMPLES) { try { await put(s); } catch (e) {} }
-      articles = await getAll();
+      for (const s of SAMPLES) { try { await idbPut(s); } catch (e) {} }
+      articles = await idbAll();
       if (!articles.length) articles = SAMPLES.slice();
       lsSet("tandeallo-seeded", "1");
     }
+    loaded = true;
+    applyModeUI();
     if (!ok) toast("Penyimpanan browser tidak tersedia; artikel hanya tersimpan sampai halaman ditutup");
-    route();
+    route(true);
   })();
 })();
 </script>
