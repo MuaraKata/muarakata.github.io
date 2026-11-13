@@ -407,14 +407,39 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       gh.branch = repo.default_branch;
       try { await ghReq("GET", "branches/main"); gh.branch = "main"; } catch (e) {}
       articles = (await ghReadArticles()).list;
+      const denied = await ghProbeWrite();
+      if (denied) { gh = null; return denied; }
       canWrite = true;
       return "";
     } catch (e) {
       gh = null;
-      if (e && (e.code === "gh_401" || e.code === "gh_403")) return "Token tidak valid atau sudah kedaluwarsa.";
+      if (e && (e.code === "gh_401" || e.code === "gh_403")) return ghErrorText(e);
       if (e && e.code === "gh_404") return "Repositori " + where.owner + "/" + where.repo + " tidak ditemukan dengan token ini. Pastikan token diberi akses ke repositori tersebut.";
       return "Tidak dapat menghubungi GitHub. Periksa koneksi lalu coba lagi.";
     }
+  }
+  // Checks that the TOKEN (not just the account) may write repo contents, without changing anything:
+  // re-sends articles.json unchanged with a deliberately wrong sha. GitHub checks permission first,
+  // so a token without write access gets 403/404, while one with access gets 409/422 and nothing is written.
+  async function ghProbeWrite() {
+    const meta = await ghGetFile(CONTENT);
+    if (!meta || !meta.content) return "";
+    try {
+      await ghReq("PUT", "contents/" + encPath(CONTENT), { message: "Periksa izin token", content: meta.content.replace(/\s/g, ""), branch: gh.branch, sha: "0000000000000000000000000000000000000000" });
+      return "";
+    } catch (e) {
+      if (e && (e.code === "gh_401" || e.code === "gh_403" || e.code === "gh_404")) return ghErrorText(e);
+      return "";
+    }
+  }
+  function ghErrorText(e) {
+    const code = e && e.code, msg = (e && e.message) || "";
+    const raw = msg ? " (Pesan GitHub: \"" + msg + "\")" : "";
+    if (code === "gh_401") return "Token tidak valid atau sudah kedaluwarsa. Buat token baru, lalu Keluar dan masuk lagi." + raw;
+    if (/approv|forbids access via a fine-grained|organization/i.test(msg)) return "Organisasi pemilik repositori belum menyetujui token ini. Setujui di Settings organisasi → Personal access tokens → Pending requests, atau buat token dengan Resource owner yang benar." + raw;
+    if (code === "gh_403" || code === "gh_404") return "Token ini hanya bisa membaca, belum bisa mengubah isi repositori. Buat token baru dengan Repository access ke Tandeallo dan Permissions → Contents: Read and write, lalu Keluar dan masuk lagi." + raw;
+    if (code === "gh_409" || code === "gh_422") return "GitHub menolak perubahan karena repositori baru saja berubah. Muat ulang halaman lalu coba lagi." + raw;
+    return "GitHub menolak permintaan." + raw;
   }
   async function dropAsset(id) {
     if (!id || !assetsCap) return;
@@ -764,10 +789,8 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
           yes.disabled = false; no.disabled = false; yes.textContent = "Ya, hapus";
           const code = e && e.code;
           derr.textContent =
-            code === "gh_401" || code === "gh_403" ? "GitHub menolak: token tidak valid, kedaluwarsa, atau belum diberi izin Contents (Read and write). Keluar lalu masuk lagi dengan token baru." :
-            code === "gh_404" ? "GitHub tidak menemukan repositori atau berkas artikel. Pastikan token diberi akses ke repositori Tandeallo." :
             code === "invalid_argument" ? "Akun Anda tidak punya izin menghapus artikel di halaman ini." :
-            code && code.startsWith("gh_") ? "GitHub menolak penghapusan (" + (e.message || code) + "). Coba lagi sebentar lagi." :
+            code && code.startsWith("gh_") ? ghErrorText(e) :
             "Artikel gagal dihapus. Periksa koneksi internet lalu coba lagi.";
           derr.hidden = false;
         }
@@ -966,8 +989,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         if (code === "no_assets") showErr("Berkas tidak dapat diunggah dari tampilan ini. Hapus gambar/PDF lalu terbitkan, atau buka halaman sebagai pemilik.");
         else if (code === "too_large") showErr("Berkas terlalu besar. Batasnya 20 MB per berkas.");
         else if (code === "quota_or_state" || code === "quota_exceeded") showErr("Ruang penyimpanan penuh. Hapus beberapa artikel lama lalu coba lagi.");
-        else if (code === "gh_401" || code === "gh_403") showErr("GitHub menolak penyimpanan: token tidak valid, kedaluwarsa, atau tidak punya izin Contents (Read and write). Keluar lalu masuk lagi dengan token baru.");
-        else if (code === "gh_409" || code === "gh_422") showErr("GitHub menolak penyimpanan (" + (ex.message || code) + "). Coba lagi sebentar lagi.");
+        else if (code && String(code).startsWith("gh_")) showErr(ghErrorText(ex));
         else if (code === "invalid_argument" && mode === "shared") showErr("Artikel tidak tersimpan. Teksnya mungkin terlalu panjang (maks. sekitar 250 KB), atau akun Anda tidak punya izin mengubah situs ini.");
         else showErr("Artikel gagal disimpan. Periksa koneksi lalu coba lagi.");
       }
