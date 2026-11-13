@@ -6,7 +6,7 @@ Website yang memadukan **jurnal ilmiah** dan **berita**. Semua kode ada di satu 
 
 1. Buka **Settings → Pages** di repositori ini.
 2. Pada **Build and deployment → Source**, pilih **Deploy from a branch**.
-3. Pilih branch `claude/journal-news-article-site-ds23oo` dan folder `/ (root)`, lalu klik **Save**.
+3. Pilih branch `main` dan folder `/ (root)`, lalu klik **Save**.
 4. Tunggu 1–2 menit. Website Anda tersedia di **https://wisartandeallo.github.io/Tandeallo/**.
 
 ## Mengunggah artikel (pengelola)
@@ -19,7 +19,7 @@ Artikel disimpan langsung di repositori ini: teksnya di `content/articles.json`,
    - **Permissions → Repository permissions → Contents:** *Read and write*
 3. Tempel token, klik **Masuk**, lalu gunakan **+ Unggah Artikel**.
 
-Setiap kali artikel diterbitkan, diubah, atau dihapus, halaman membuat *commit* ke repositori. GitHub Pages memperbarui website dalam 1–2 menit. Token hanya disimpan di browser Anda. Klik **Pengelola → Keluar** untuk menghapusnya dari browser itu.
+Setiap kali artikel diterbitkan, diubah, atau dihapus, halaman membuat *commit* ke branch `main`. GitHub Pages memperbarui website dalam 1–2 menit. Token hanya disimpan di browser Anda. Klik **Pengelola → Keluar** untuk menghapusnya dari browser itu.
 
 ## Fitur
 

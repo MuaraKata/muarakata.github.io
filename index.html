@@ -403,7 +403,9 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     try {
       const repo = await ghReq("GET", "", null, "https://api.github.com/repos/" + where.owner + "/" + where.repo);
       if (!repo.permissions || !repo.permissions.push) { gh = null; return "Token ini tidak punya izin menulis ke repositori " + where.owner + "/" + where.repo + "."; }
+      // Write to the branch GitHub Pages serves: "main" when it exists, else the default branch.
       gh.branch = repo.default_branch;
+      try { await ghReq("GET", "branches/main"); gh.branch = "main"; } catch (e) {}
       articles = (await ghReadArticles()).list;
       canWrite = true;
       return "";
