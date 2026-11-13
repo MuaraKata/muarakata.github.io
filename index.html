@@ -734,25 +734,45 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         (canWrite ? '<div class="panel"><h3>Kelola</h3>' +
           '<a class="btn btn-sm" href="#ubah-' + esc(a.id) + '">Ubah artikel</a>' +
           '<button class="btn btn-sm btn-danger" type="button" id="btn-del">Hapus artikel</button>' +
+          '<div id="del-confirm" hidden style="display:grid;gap:8px">' +
+            '<span style="font-size:.88rem">Hapus artikel ini untuk semua pengunjung? Tindakan ini tidak bisa dibatalkan.</span>' +
+            '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-sm btn-danger armed" type="button" id="btn-del-yes">Ya, hapus</button>' +
+            '<button class="btn btn-sm" type="button" id="btn-del-no">Batal</button></div>' +
+          "</div>" +
+          '<p class="error" id="del-error" hidden style="margin:0"></p>' +
         "</div>" : "") +
+        (!canWrite && mode === "github" ? '<div class="panel"><h3>Kelola</h3>' +
+          '<span style="font-size:.88rem">Untuk mengubah atau menghapus artikel ini, masuk dulu sebagai pengelola.</span>' +
+          '<a class="btn btn-sm" href="#masuk">Masuk pengelola</a></div>' : "") +
       "</aside></article>";
 
     const del = $("#btn-del");
-    if (del) del.addEventListener("click", async () => {
-      if (!del.classList.contains("armed")) {
-        del.classList.add("armed"); del.textContent = "Klik lagi untuk menghapus";
-        setTimeout(() => { if (del.isConnected) { del.classList.remove("armed"); del.textContent = "Hapus artikel"; } }, 4000);
-        return;
-      }
-      del.disabled = true;
-      try {
-        await remove(a.id);
-        articles = articles.filter(x => x.id !== a.id);
-        if (mode === "shared") { await dropAsset(a.coverId); await dropAsset(a.pdfId); }
-        if (mode === "github") { await ghDeleteFile(a.coverPath); await ghDeleteFile(a.pdfPath); }
-        toast("Artikel dihapus"); location.hash = isJ ? "jurnal" : "berita";
-      } catch (e) { del.disabled = false; toast("Artikel gagal dihapus. Coba lagi."); }
-    });
+    if (del) {
+      const box = $("#del-confirm"), yes = $("#btn-del-yes"), no = $("#btn-del-no"), derr = $("#del-error");
+      del.addEventListener("click", () => { del.hidden = true; box.hidden = false; derr.hidden = true; yes.focus(); });
+      no.addEventListener("click", () => { box.hidden = true; del.hidden = false; });
+      yes.addEventListener("click", async () => {
+        yes.disabled = true; no.disabled = true; yes.textContent = "Menghapus…";
+        try {
+          await remove(a.id);
+          articles = articles.filter(x => x.id !== a.id);
+          if (mode === "shared") { await dropAsset(a.coverId); await dropAsset(a.pdfId); }
+          if (mode === "github") { await ghDeleteFile(a.coverPath); await ghDeleteFile(a.pdfPath); }
+          toast(mode === "github" ? "Artikel dihapus. Pengunjung melihat perubahannya dalam 1–2 menit." : "Artikel dihapus");
+          location.hash = isJ ? "jurnal" : "berita";
+        } catch (e) {
+          yes.disabled = false; no.disabled = false; yes.textContent = "Ya, hapus";
+          const code = e && e.code;
+          derr.textContent =
+            code === "gh_401" || code === "gh_403" ? "GitHub menolak: token tidak valid, kedaluwarsa, atau belum diberi izin Contents (Read and write). Keluar lalu masuk lagi dengan token baru." :
+            code === "gh_404" ? "GitHub tidak menemukan repositori atau berkas artikel. Pastikan token diberi akses ke repositori Tandeallo." :
+            code === "invalid_argument" ? "Akun Anda tidak punya izin menghapus artikel di halaman ini." :
+            code && code.startsWith("gh_") ? "GitHub menolak penghapusan (" + (e.message || code) + "). Coba lagi sebentar lagi." :
+            "Artikel gagal dihapus. Periksa koneksi internet lalu coba lagi.";
+          derr.hidden = false;
+        }
+      });
+    }
     const c = $("#btn-cite"); if (c) c.addEventListener("click", () => copyText(citation(a), $("#cite")));
     const v = $("#btn-view-pdf");
     if (v) v.addEventListener("click", () => {
