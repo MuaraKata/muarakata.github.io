@@ -1,25 +1,6 @@
 {
   "app": "tandeallo",
   "version": 1,
-  "updated": "2026-11-13T22:43:36.949Z",
-  "articles": [
-    {
-      "id": "contoh-4",
-      "type": "jurnal",
-      "contoh": true,
-      "rubrik": "Pendidikan",
-      "title": "Pemanfaatan Bahasa Daerah dalam Pembelajaran Matematika Kelas Awal",
-      "authors": "Yohanis Patandianan; Sri Wahyuni",
-      "affiliation": "Fakultas Keguruan dan Ilmu Pendidikan, Universitas Kristen Indonesia Toraja",
-      "date": "2026-10-15",
-      "volume": "4",
-      "issue": "2",
-      "pages": "119–134",
-      "keywords": "bahasa ibu; matematika; sekolah dasar",
-      "abstract": "Studi kuasi-eksperimen pada 64 siswa kelas II menunjukkan penggunaan bahasa daerah sebagai pengantar meningkatkan pemahaman konsep bilangan secara signifikan dibanding kelas kontrol.",
-      "body": "## Pendahuluan\n\nBanyak siswa kelas awal di daerah belum fasih berbahasa Indonesia ketika masuk sekolah.\n\n## Hasil\n\nRata-rata skor pascates kelompok eksperimen 78,4 dibanding 69,1 pada kelompok kontrol.",
-      "references": "UNESCO. (2016). If you don't understand, how can you learn? Global Education Monitoring Report Policy Paper 24.",
-      "created": 4
-    }
-  ]
+  "updated": "2026-11-13T22:44:26.900Z",
+  "articles": []
 }
