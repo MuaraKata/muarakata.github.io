@@ -343,6 +343,8 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   async function ghReq(method, path, body, base) {
     const r = await fetch((base || "https://api.github.com/repos/" + gh.owner + "/" + gh.repo + "/") + path, {
       method,
+      // GitHub marks API responses cacheable for 60 s; a cached file sha makes the next save fail with 409.
+      cache: "no-store",
       headers: { Authorization: "Bearer " + gh.token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
       body: body ? JSON.stringify(body) : undefined
     });
