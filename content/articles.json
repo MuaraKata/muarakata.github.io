@@ -1,0 +1,68 @@
+{
+  "app": "tandeallo",
+  "version": 1,
+  "updated": "2026-11-13T22:13:24.807Z",
+  "articles": [
+    {
+      "id": "contoh-1",
+      "type": "berita",
+      "contoh": true,
+      "rubrik": "Lingkungan",
+      "title": "Mangrove Pesisir Selatan Pulih, Nelayan Kepiting Kembali Panen",
+      "authors": "Redaksi Tandeallo",
+      "date": "2026-11-10",
+      "abstract": "Lima tahun setelah penanaman ulang, hutan mangrove di pesisir selatan kembali rapat. Hasil tangkapan kepiting bakau nelayan setempat naik hampir dua kali lipat.",
+      "body": "Pagi itu air sedang surut. Di sela akar-akar bakau yang mencuat dari lumpur, Daeng Rahman memeriksa satu per satu bubu yang ia pasang semalam. Hampir semuanya berisi.\n\n\"Dulu kami harus ke pulau seberang untuk dapat kepiting. Sekarang cukup di sini,\" katanya.\n\n## Lima tahun penanaman\n\nPenanaman ulang dimulai pada 2021 oleh kelompok tani hutan setempat bersama pemerintah desa. Sekitar 40.000 bibit *Rhizophora* ditanam di lahan bekas tambak yang ditinggalkan.\n\n> Kuncinya bukan menanam sebanyak-banyaknya, tetapi memastikan aliran pasang surut kembali normal.\n\nKelompok tani kini merencanakan ekowisata kecil berupa jalur papan di tepi hutan, dengan pemandu dari warga desa sendiri.",
+      "created": 1
+    },
+    {
+      "id": "contoh-2",
+      "type": "jurnal",
+      "contoh": true,
+      "rubrik": "Ilmu Lingkungan",
+      "title": "Pengaruh Restorasi Mangrove terhadap Kelimpahan Kepiting Bakau (Scylla serrata) di Pesisir Sulawesi Selatan",
+      "authors": "Andi Nurhaliza; Muh. Fajar Saputra; Rina Tandiarrang",
+      "affiliation": "Program Studi Ilmu Kelautan, Universitas Hasanuddin",
+      "date": "2026-10-28",
+      "volume": "4",
+      "issue": "2",
+      "pages": "101–118",
+      "doi": "10.00000/tdl.v4i2.112",
+      "keywords": "mangrove; restorasi; Scylla serrata; perikanan skala kecil",
+      "abstract": "Penelitian ini membandingkan kelimpahan kepiting bakau pada kawasan mangrove hasil restorasi berumur lima tahun dengan kawasan alami dan bekas tambak. Pengambilan sampel dilakukan dengan bubu lipat pada 18 stasiun selama enam bulan. Kelimpahan pada kawasan restorasi mencapai 82% dari kawasan alami dan berbeda nyata dengan bekas tambak (p < 0,05). Hasil ini menunjukkan restorasi berbasis hidrologi dapat memulihkan fungsi habitat dalam waktu relatif singkat.",
+      "body": "## Pendahuluan\n\nHutan mangrove merupakan habitat penting bagi kepiting bakau pada seluruh tahap hidupnya. Konversi mangrove menjadi tambak selama tiga dekade terakhir telah menurunkan produksi kepiting di banyak wilayah pesisir.\n\n## Metode\n\nPenelitian dilakukan pada Januari–Juni 2026 di tiga tipe lahan: mangrove alami, mangrove restorasi, dan bekas tambak. Setiap tipe lahan terdiri atas enam stasiun dengan sepuluh bubu lipat per stasiun.\n\n## Hasil dan Pembahasan\n\nRata-rata hasil tangkapan per unit upaya pada kawasan restorasi sebesar 3,1 ekor/bubu/malam, dibandingkan 3,8 pada kawasan alami dan 0,9 pada bekas tambak.\n\n## Kesimpulan\n\nRestorasi mangrove yang memulihkan aliran pasang surut efektif mengembalikan kelimpahan kepiting bakau.",
+      "references": "Alongi, D. M. (2014). Carbon cycling and storage in mangrove forests. Annual Review of Marine Science, 6, 195–219.\nLewis, R. R. (2005). Ecological engineering for successful management and restoration of mangrove forests. Ecological Engineering, 24(4), 403–418.",
+      "created": 2
+    },
+    {
+      "id": "contoh-3",
+      "type": "berita",
+      "contoh": true,
+      "rubrik": "Kampus",
+      "title": "Seminar Nasional Literasi Data Digelar, 300 Peserta Ikut Daring",
+      "authors": "Tim Liputan",
+      "date": "2026-11-06",
+      "abstract": "Seminar membahas cara peneliti muda membagikan data penelitian secara terbuka tanpa melanggar privasi responden.",
+      "body": "Seminar nasional bertema literasi data penelitian berlangsung secara hibrida dan diikuti lebih dari 300 peserta dari berbagai kampus.\n\nPembicara menekankan pentingnya anonimisasi data sebelum diunggah ke repositori terbuka.",
+      "created": 3
+    },
+    {
+      "id": "contoh-4",
+      "type": "jurnal",
+      "contoh": true,
+      "rubrik": "Pendidikan",
+      "title": "Pemanfaatan Bahasa Daerah dalam Pembelajaran Matematika Kelas Awal",
+      "authors": "Yohanis Patandianan; Sri Wahyuni",
+      "affiliation": "Fakultas Keguruan dan Ilmu Pendidikan, Universitas Kristen Indonesia Toraja",
+      "date": "2026-10-15",
+      "volume": "4",
+      "issue": "2",
+      "pages": "119–134",
+      "keywords": "bahasa ibu; matematika; sekolah dasar",
+      "abstract": "Studi kuasi-eksperimen pada 64 siswa kelas II menunjukkan penggunaan bahasa daerah sebagai pengantar meningkatkan pemahaman konsep bilangan secara signifikan dibanding kelas kontrol.",
+      "body": "## Pendahuluan\n\nBanyak siswa kelas awal di daerah belum fasih berbahasa Indonesia ketika masuk sekolah.\n\n## Hasil\n\nRata-rata skor pascates kelompok eksperimen 78,4 dibanding 69,1 pada kelompok kontrol.",
+      "references": "UNESCO. (2016). If you don't understand, how can you learn? Global Education Monitoring Report Policy Paper 24.",
+      "created": 4
+    }
+  ]
+}

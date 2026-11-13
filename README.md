@@ -1,30 +1,39 @@
 # Tandeallo — Jurnal & Warta
 
-Website yang memadukan **jurnal ilmiah** dan **berita** dalam satu halaman. Semuanya ada di satu file `index.html`, tanpa server, database, atau instalasi.
+Website yang memadukan **jurnal ilmiah** dan **berita**. Semua kode ada di satu file `index.html`, tanpa server atau instalasi.
 
-## Cara membuka
+## Terbitkan sebagai website sendiri (GitHub Pages, gratis)
 
-- **Langsung:** klik dua kali `index.html`, maka halaman terbuka di browser (Chrome, Edge, Firefox, Safari).
-- **Online (gratis):** di GitHub buka *Settings → Pages*, pilih branch ini dengan folder `/ (root)`, lalu simpan. Situs akan tersedia di `https://<username>.github.io/Tandeallo/`.
+1. Buka **Settings → Pages** di repositori ini.
+2. Pada **Build and deployment → Source**, pilih **Deploy from a branch**.
+3. Pilih branch `claude/journal-news-article-site-ds23oo` dan folder `/ (root)`, lalu klik **Save**.
+4. Tunggu 1–2 menit. Website Anda tersedia di **https://wisartandeallo.github.io/Tandeallo/**.
+
+## Mengunggah artikel (pengelola)
+
+Artikel disimpan langsung di repositori ini: teksnya di `content/articles.json`, sedangkan PDF dan gambar sampul di `content/files/`. Karena itu semua pengunjung melihat artikel yang sama.
+
+1. Buka website, lalu klik **Masuk pengelola** di bagian bawah halaman.
+2. Buat token di https://github.com/settings/personal-access-tokens/new:
+   - **Repository access:** *Only select repositories* → `Tandeallo`
+   - **Permissions → Repository permissions → Contents:** *Read and write*
+3. Tempel token, klik **Masuk**, lalu gunakan **+ Unggah Artikel**.
+
+Setiap kali artikel diterbitkan, diubah, atau dihapus, halaman membuat *commit* ke repositori. GitHub Pages memperbarui website dalam 1–2 menit. Token hanya disimpan di browser Anda. Klik **Pengelola → Keluar** untuk menghapusnya dari browser itu.
 
 ## Fitur
 
-- **Unggah artikel** lewat tombol *+ Unggah Artikel*, dengan dua jenis tulisan:
+- Dua jenis tulisan:
   - **Berita:** judul, penulis, rubrik, ringkasan, isi, dan gambar sampul.
-  - **Jurnal:** ditambah afiliasi, volume/nomor/halaman, DOI, kata kunci, abstrak, daftar pustaka, dan **berkas PDF** naskah lengkap.
+  - **Jurnal:** ditambah afiliasi, volume/nomor/halaman, DOI, kata kunci, abstrak, daftar pustaka, dan **PDF** naskah lengkap (maks. 20 MB).
 - Beranda menampilkan berita utama dan panel *Terbitan Jurnal Terbaru*, diikuti daftar semua artikel.
 - Filter Semua / Berita / Jurnal, plus pencarian berdasarkan judul, penulis, dan kata kunci.
-- Halaman artikel jurnal punya abstrak, kata kunci, tombol unduh/tampilkan PDF, dan **kutipan APA** yang bisa disalin.
-- Artikel bisa diubah dan dihapus.
-- Format isi sederhana: baris kosong = paragraf baru, `## ` = subjudul, `> ` = kutipan, `**tebal**`, `*miring*`.
+- Halaman artikel jurnal punya abstrak, kata kunci, tombol tampilkan/unduh PDF, dan **kutipan APA** yang bisa disalin.
+- Format isi: baris kosong = paragraf baru, `## ` = subjudul, `> ` = kutipan, `**tebal**`, `*miring*`.
 
-## Penyimpanan data
+## Cara lain membuka
 
-**Versi online (artifact claude.ai):** artikel disimpan di database bersama milik halaman itu, sedangkan PDF dan gambar sampul disimpan sebagai berkas di server. Semua pengunjung yang punya akses ke link bisa membaca. Hanya pemilik dan editor yang diundang yang melihat tombol *Unggah Artikel*, *Ubah*, dan *Hapus*, dan aturan database menolak penulisan dari orang lain.
+- **File langsung:** klik dua kali `index.html`. Dalam mode ini artikel disimpan di browser perangkat itu saja (IndexedDB). Pindahkan ke perangkat lain dengan **Ekspor/Impor cadangan**.
+- **Artifact claude.ai:** artikel disimpan di database bersama milik artifact. Hanya pemilik dan editor yang bisa mengunggah.
 
-**Versi file (`index.html` dibuka langsung atau lewat GitHub Pages):** artikel disimpan di **browser perangkat yang dipakai** (IndexedDB). Artinya:
-
-- Data tetap ada walau browser ditutup, tetapi **tidak otomatis muncul di perangkat atau browser lain**.
-- Gunakan **Ekspor cadangan** di bagian bawah halaman untuk menyimpan file `.json`, lalu **Impor cadangan** untuk memulihkannya di perangkat lain.
-- Empat artikel bertanda **Contoh** dimuat saat pertama kali dibuka. Hapus saja kalau tidak diperlukan.
-
+Cadangan `.json` dari mode file bisa diimpor ke website GitHub (masuk sebagai pengelola → **Impor cadangan**), termasuk PDF dan gambarnya.

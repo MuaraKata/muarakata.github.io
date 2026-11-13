@@ -250,6 +250,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   <div class="wrap">
     <p id="storage-note">Artikel tersimpan di browser perangkat ini (IndexedDB). Buat cadangan secara berkala, lalu pulihkan di perangkat lain lewat tombol Impor.</p>
     <div class="foot-actions">
+      <a class="btn btn-sm" id="btn-admin" href="#masuk" hidden>Masuk pengelola</a>
       <button class="btn btn-sm" id="btn-export" type="button">Ekspor cadangan (.json)</button>
       <button class="btn btn-sm" id="btn-copy-backup" type="button">Salin cadangan</button>
       <label class="btn btn-sm" for="import-file">Impor cadangan</label>
@@ -271,12 +272,19 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
        Everyone who opens the link reads; only owner/editors write.
      - "local":  index.html opened directly or hosted statically. Articles live
        in this browser's IndexedDB (with an in-memory fallback).
+     - "github": hosted on GitHub Pages with content/articles.json in the repo.
+       Everyone reads the static file; the owner signs in with a GitHub token
+       and the page commits articles and files to the repo via the GitHub API.
      - "closed": inside the artifact viewer but the shared store is unavailable
        (e.g. signed out). Read-only, nothing to show.
      ===================================================================== */
   const DB_NAME = "tandeallo", STORE = "articles", COLL = "articles";
   let idb = null, memory = [];
   let mode = "local", shared = null, assetsCap = null, dl = null, canWrite = true;
+  // Fallback repo for GitHub mode; on <owner>.github.io/<repo> it is read from the address.
+  const GH_DEFAULT = { owner: "WisarTandeallo", repo: "Tandeallo" };
+  const CONTENT = "content/articles.json", FILES_DIR = "content/files/", TOKEN_KEY = "tandeallo-gh-token";
+  let gh = null; // { owner, repo, branch, token } once the manager is signed in
   let loaded = false, loadSlow = false, loadError = false, loadTimer = null;
 
   function idbOpen() {
@@ -314,11 +322,97 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   }
   function put(a) {
     if (mode === "shared") return shared.collection(COLL).doc(a.id).set(a);
+    if (mode === "github") return ghSaveArticles(list => list.filter(x => x.id !== a.id).concat(a), "Terbitkan artikel: " + a.title);
     return idbPut(a);
   }
   function remove(id) {
     if (mode === "shared") return shared.collection(COLL).doc(id).delete();
+    if (mode === "github") return ghSaveArticles(list => list.filter(x => x.id !== id), "Hapus artikel " + id);
     return idbDel(id);
+  }
+  const remoteFiles = () => mode === "shared" || mode === "github";
+
+  /* ---------- GitHub (Contents API) ---------- */
+  function ghRepoFromLocation() {
+    const host = location.hostname.toLowerCase();
+    if (!host.endsWith(".github.io")) return Object.assign({}, GH_DEFAULT);
+    const owner = host.slice(0, -".github.io".length);
+    const seg = location.pathname.split("/").filter(Boolean)[0];
+    return { owner, repo: seg && !/\.html?$/.test(seg) ? seg : owner + ".github.io" };
+  }
+  async function ghReq(method, path, body, base) {
+    const r = await fetch((base || "https://api.github.com/repos/" + gh.owner + "/" + gh.repo + "/") + path, {
+      method,
+      headers: { Authorization: "Bearer " + gh.token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+      body: body ? JSON.stringify(body) : undefined
+    });
+    if (!r.ok) {
+      let msg = ""; try { msg = (await r.json()).message || ""; } catch (e) {}
+      throw { code: "gh_" + r.status, message: msg };
+    }
+    return r.status === 204 ? null : r.json();
+  }
+  const encPath = (p) => p.split("/").map(encodeURIComponent).join("/");
+  function b64ToText(b64) {
+    const bin = atob(String(b64).replace(/\s/g, ""));
+    return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+  }
+  function textToB64(text) {
+    const bytes = new TextEncoder().encode(text); let bin = "";
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  }
+  async function blobToB64(blob) { return (await readFile(blob)).split(",")[1]; }
+  async function ghGetFile(path) {
+    try { return await ghReq("GET", "contents/" + encPath(path) + "?ref=" + encodeURIComponent(gh.branch)); }
+    catch (e) { if (e.code === "gh_404") return null; throw e; }
+  }
+  async function ghPutFile(path, b64, message) {
+    const cur = await ghGetFile(path);
+    return ghReq("PUT", "contents/" + encPath(path), { message, content: b64, branch: gh.branch, sha: cur ? cur.sha : undefined });
+  }
+  async function ghDeleteFile(path) {
+    if (!path || !path.startsWith(FILES_DIR)) return;
+    try { const cur = await ghGetFile(path); if (cur) await ghReq("DELETE", "contents/" + encPath(path), { message: "Hapus berkas " + path, sha: cur.sha, branch: gh.branch }); } catch (e) {}
+  }
+  async function ghReadArticles() {
+    const meta = await ghGetFile(CONTENT);
+    if (!meta) return { list: [], sha: undefined };
+    let text = meta.content ? b64ToText(meta.content) : "";
+    if (!text) { // over 1 MB: the API leaves content empty; read the blob instead
+      const blob = await ghReq("GET", "git/blobs/" + meta.sha);
+      text = b64ToText(blob.content);
+    }
+    const data = JSON.parse(text || "{}");
+    return { list: Array.isArray(data) ? data : (data.articles || []), sha: meta.sha };
+  }
+  async function ghSaveArticles(mutate, message) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const { list, sha } = await ghReadArticles();
+      const next = mutate(list.slice());
+      const body = JSON.stringify({ app: "tandeallo", version: 1, updated: new Date().toISOString(), articles: next }, null, 2) + "\n";
+      try {
+        await ghReq("PUT", "contents/" + encPath(CONTENT), { message, content: textToB64(body), branch: gh.branch, sha });
+        articles = next; return;
+      } catch (e) { if (e.code !== "gh_409" || attempt) throw e; }
+    }
+  }
+  async function ghSignIn(token) {
+    const where = ghRepoFromLocation();
+    gh = Object.assign(where, { token, branch: "" });
+    try {
+      const repo = await ghReq("GET", "", null, "https://api.github.com/repos/" + where.owner + "/" + where.repo);
+      if (!repo.permissions || !repo.permissions.push) { gh = null; return "Token ini tidak punya izin menulis ke repositori " + where.owner + "/" + where.repo + "."; }
+      gh.branch = repo.default_branch;
+      articles = (await ghReadArticles()).list;
+      canWrite = true;
+      return "";
+    } catch (e) {
+      gh = null;
+      if (e && (e.code === "gh_401" || e.code === "gh_403")) return "Token tidak valid atau sudah kedaluwarsa.";
+      if (e && e.code === "gh_404") return "Repositori " + where.owner + "/" + where.repo + " tidak ditemukan dengan token ini. Pastikan token diberi akses ke repositori tersebut.";
+      return "Tidak dapat menghubungi GitHub. Periksa koneksi lalu coba lagi.";
+    }
   }
   async function dropAsset(id) {
     if (!id || !assetsCap) return;
@@ -422,7 +516,8 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     if (a.doi) s += " https://doi.org/" + a.doi.replace(/^https?:\/\/doi\.org\//, "");
     return s;
   }
-  const coverSrc = (a) => a.cover || assetUrl(a.coverId);
+  const repoFile = (p) => typeof p === "string" && p.startsWith(FILES_DIR) && !p.includes("..") ? p : "";
+  const coverSrc = (a) => a.cover || assetUrl(a.coverId) || repoFile(a.coverPath);
   function coverHTML(a) {
     const src = coverSrc(a);
     const label = a.type === "jurnal" ? (issueLabel(a) || "Artikel Jurnal") : (a.rubrik || "Berita");
@@ -484,7 +579,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     if (!canvas) return file;
     return new Promise(res => canvas.toBlob(b => res(b || file), "image/jpeg", 0.86));
   }
-  const canSaveFiles = () => !!dl || (mode === "local" && !inFrame);
+  const canSaveFiles = () => !!dl || ((mode === "local" || mode === "github") && !inFrame);
   async function saveFile(filename, blob) {
     if (dl) {
       try { await dl.save({ filename, data: blob }); }
@@ -566,7 +661,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   }
 
   function cardHTML(a) {
-    const hasPdf = a.pdf || a.pdfId;
+    const hasPdf = a.pdf || a.pdfId || a.pdfPath;
     if (a.type === "jurnal") {
       return '<a class="card jurnal" href="#artikel-' + esc(a.id) + '"><div class="card-body">' +
         '<div class="row">' + tags(a) + "</div>" +
@@ -598,6 +693,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     pdfUrl = null;
     if (a.pdf) { try { pdfUrl = URL.createObjectURL(dataUrlToBlob(a.pdf)); } catch (e) { pdfUrl = null; } }
     else if (a.pdfId) pdfUrl = assetUrl(a.pdfId);
+    else if (repoFile(a.pdfPath)) pdfUrl = repoFile(a.pdfPath);
     const pdfName = a.pdfName || "artikel.pdf";
     const isJ = a.type === "jurnal";
     const refList = String(a.references || "").split("\n").map(x => x.trim()).filter(Boolean);
@@ -651,6 +747,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         await remove(a.id);
         articles = articles.filter(x => x.id !== a.id);
         if (mode === "shared") { await dropAsset(a.coverId); await dropAsset(a.pdfId); }
+        if (mode === "github") { await ghDeleteFile(a.coverPath); await ghDeleteFile(a.pdfPath); }
         toast("Artikel dihapus"); location.hash = isJ ? "jurnal" : "berita";
       } catch (e) { del.disabled = false; toast("Artikel gagal dihapus. Coba lagi."); }
     });
@@ -682,17 +779,19 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     const d = a || { type: "berita", date: new Date().toISOString().slice(0, 10) };
     const draft = {
       cover: d.cover || "", coverId: d.coverId || "", coverBlob: null,
-      pdf: d.pdf || "", pdfId: d.pdfId || "", pdfBlob: null, pdfName: d.pdfName || ""
+      pdf: d.pdf || "", pdfId: d.pdfId || "", pdfBlob: null, pdfName: d.pdfName || "",
+      coverPath: d.coverPath || "", pdfPath: d.pdfPath || ""
     };
     const v = (k) => esc(d[k] || "");
-    const previewSrc = draft.cover || assetUrl(draft.coverId);
-    const hasPdf = draft.pdf || draft.pdfId;
+    const previewSrc = draft.cover || assetUrl(draft.coverId) || repoFile(draft.coverPath);
+    const hasPdf = draft.pdf || draft.pdfId || draft.pdfPath;
 
     app.innerHTML =
       '<div class="wrap"><div class="form-page">' +
       "<h1>" + (a ? "Ubah artikel" : "Unggah artikel") + "</h1>" +
       "<p>Pilih jenis tulisan. Berita cocok untuk liputan dan opini; Jurnal untuk naskah ilmiah lengkap dengan abstrak, DOI, dan berkas PDF." +
-        (mode === "shared" ? " Artikel yang diterbitkan langsung terlihat oleh semua pengunjung." : "") + "</p>" +
+        (mode === "shared" ? " Artikel yang diterbitkan langsung terlihat oleh semua pengunjung." : "") +
+        (mode === "github" ? " Artikel disimpan ke repositori GitHub dan terlihat oleh semua pengunjung sekitar 1–2 menit setelah terbit." : "") + "</p>" +
       '<form class="submit" id="f" novalidate>' +
         '<div class="type-pick" role="radiogroup" aria-label="Jenis artikel">' +
           '<label class="berita"><input type="radio" name="type" id="type-berita" value="berita"' + (d.type === "berita" ? " checked" : "") + '><strong>Berita</strong><span>Liputan, opini, kabar kampus</span></label>' +
@@ -746,7 +845,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     async function setCover(file) {
       if (!file || !file.type.startsWith("image/")) return;
       const p = $("#cover-preview");
-      if (mode === "shared") {
+      if (remoteFiles()) {
         draft.coverBlob = await resizeToBlob(file); draft.cover = "";
         p.src = URL.createObjectURL(draft.coverBlob);
       } else {
@@ -758,15 +857,15 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       if (!file) return;
       if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { toast("Berkas harus berformat PDF"); return; }
       if (file.size > 20 * 1024 * 1024) { toast("PDF terlalu besar (maks. 20 MB)"); return; }
-      if (mode === "shared") { draft.pdfBlob = file; draft.pdf = ""; }
+      if (remoteFiles()) { draft.pdfBlob = file; draft.pdf = ""; }
       else draft.pdf = await readFile(file);
       draft.pdfName = file.name;
       $("#pdf-name").textContent = file.name + " · " + (file.size / 1024 / 1024).toFixed(1) + " MB"; $("#pdf-clear").hidden = false;
     }
     $("#cover").addEventListener("change", e => setCover(e.target.files[0]));
     $("#pdf").addEventListener("change", e => setPdf(e.target.files[0]));
-    $("#cover-clear").addEventListener("click", () => { draft.cover = ""; draft.coverId = ""; draft.coverBlob = null; $("#cover-preview").hidden = true; $("#cover-clear").hidden = true; $("#cover").value = ""; });
-    $("#pdf-clear").addEventListener("click", () => { draft.pdf = ""; draft.pdfId = ""; draft.pdfBlob = null; draft.pdfName = ""; $("#pdf-name").textContent = "Belum ada berkas"; $("#pdf-clear").hidden = true; $("#pdf").value = ""; });
+    $("#cover-clear").addEventListener("click", () => { draft.cover = ""; draft.coverId = ""; draft.coverPath = ""; draft.coverBlob = null; $("#cover-preview").hidden = true; $("#cover-clear").hidden = true; $("#cover").value = ""; });
+    $("#pdf-clear").addEventListener("click", () => { draft.pdf = ""; draft.pdfId = ""; draft.pdfPath = ""; draft.pdfBlob = null; draft.pdfName = ""; $("#pdf-name").textContent = "Belum ada berkas"; $("#pdf-clear").hidden = true; $("#pdf").value = ""; });
     [["#drop-cover", setCover], ["#drop-pdf", setPdf]].forEach(([sel, fn]) => {
       const z = $(sel);
       z.addEventListener("dragover", e => { e.preventDefault(); z.classList.add("over"); });
@@ -783,7 +882,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       const missing = [];
       if (!get("title")) missing.push("judul");
       if (!get("authors")) missing.push("penulis");
-      if (!get("body") && !get("abstract") && !(draft.pdf || draft.pdfId || draft.pdfBlob)) missing.push("isi, ringkasan, atau berkas PDF");
+      if (!get("body") && !get("abstract") && !(draft.pdf || draft.pdfId || draft.pdfPath || draft.pdfBlob)) missing.push("isi, ringkasan, atau berkas PDF");
       if (missing.length) { showErr("Lengkapi dulu: " + missing.join(", ") + "."); return; }
       err.hidden = true;
       const btn = $("#btn-submit"); const label = btn.textContent;
@@ -795,19 +894,37 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
           if (draft.pdfBlob) { btn.textContent = "Mengunggah PDF…"; draft.pdfId = (await assetsCap.upload(draft.pdfBlob, { type: "application/pdf" })).id; draft.pdfBlob = null; }
           btn.textContent = "Menyimpan…";
         }
+        const newId = a ? a.id : uid();
+        if (mode === "github" && (draft.coverBlob || draft.pdfBlob)) {
+          const stamp = Date.now().toString(36);
+          if (draft.coverBlob) {
+            btn.textContent = "Mengunggah gambar…";
+            const path = FILES_DIR + newId + "-" + stamp + "-sampul.jpg";
+            await ghPutFile(path, await blobToB64(draft.coverBlob), "Unggah sampul " + newId);
+            draft.coverPath = path; draft.coverBlob = null;
+          }
+          if (draft.pdfBlob) {
+            btn.textContent = "Mengunggah PDF…";
+            const path = FILES_DIR + newId + "-" + stamp + ".pdf";
+            await ghPutFile(path, await blobToB64(draft.pdfBlob), "Unggah PDF " + newId);
+            draft.pdfPath = path; draft.pdfBlob = null;
+          }
+          btn.textContent = "Menyimpan…";
+        }
         const type = get("type") || "berita";
         const isJ = type === "jurnal";
         const rec = {
-          id: a ? a.id : uid(), created: a ? a.created || Date.now() : Date.now(), contoh: false, type,
+          id: newId, created: a ? a.created || Date.now() : Date.now(), contoh: false, type,
           title: get("title"), authors: get("authors"), rubrik: get("rubrik"), date: get("date") || new Date().toISOString().slice(0, 10),
           abstract: get("abstract"), body: get("body"),
           affiliation: isJ ? get("affiliation") : "", volume: isJ ? get("volume") : "",
           issue: isJ ? get("issue") : "", pages: isJ ? get("pages") : "",
           doi: isJ ? get("doi").replace(/^https?:\/\/(dx\.)?doi\.org\//, "") : "",
           keywords: isJ ? get("keywords") : "", references: isJ ? get("references") : "",
-          pdfName: (draft.pdf || draft.pdfId) ? draft.pdfName : ""
+          pdfName: (draft.pdf || draft.pdfId || draft.pdfPath) ? draft.pdfName : ""
         };
         if (mode === "shared") { rec.coverId = draft.coverId; rec.pdfId = draft.pdfId; }
+        else if (mode === "github") { rec.coverPath = draft.coverPath; rec.pdfPath = draft.pdfPath; }
         else { rec.cover = draft.cover; rec.pdf = draft.pdf; }
         await put(rec);
         articles = articles.filter(x => x.id !== rec.id).concat(rec);
@@ -815,7 +932,11 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
           if (a.coverId && a.coverId !== rec.coverId) await dropAsset(a.coverId);
           if (a.pdfId && a.pdfId !== rec.pdfId) await dropAsset(a.pdfId);
         }
-        toast(a ? "Perubahan disimpan" : "Artikel diterbitkan");
+        if (mode === "github" && a) {
+          if (a.coverPath && a.coverPath !== rec.coverPath) await ghDeleteFile(a.coverPath);
+          if (a.pdfPath && a.pdfPath !== rec.pdfPath) await ghDeleteFile(a.pdfPath);
+        }
+        toast(mode === "github" ? "Tersimpan di GitHub. Pengunjung melihatnya dalam 1–2 menit." : (a ? "Perubahan disimpan" : "Artikel diterbitkan"));
         location.hash = "artikel-" + rec.id;
       } catch (ex) {
         btn.disabled = false; btn.textContent = label;
@@ -823,9 +944,51 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         if (code === "no_assets") showErr("Berkas tidak dapat diunggah dari tampilan ini. Hapus gambar/PDF lalu terbitkan, atau buka halaman sebagai pemilik.");
         else if (code === "too_large") showErr("Berkas terlalu besar. Batasnya 20 MB per berkas.");
         else if (code === "quota_or_state" || code === "quota_exceeded") showErr("Ruang penyimpanan penuh. Hapus beberapa artikel lama lalu coba lagi.");
+        else if (code === "gh_401" || code === "gh_403") showErr("GitHub menolak penyimpanan: token tidak valid, kedaluwarsa, atau tidak punya izin Contents (Read and write). Keluar lalu masuk lagi dengan token baru.");
+        else if (code === "gh_409" || code === "gh_422") showErr("GitHub menolak penyimpanan (" + (ex.message || code) + "). Coba lagi sebentar lagi.");
         else if (code === "invalid_argument" && mode === "shared") showErr("Artikel tidak tersimpan. Teksnya mungkin terlalu panjang (maks. sekitar 250 KB), atau akun Anda tidak punya izin mengubah situs ini.");
         else showErr("Artikel gagal disimpan. Periksa koneksi lalu coba lagi.");
       }
+    });
+  }
+
+  function renderLogin() {
+    setNav("");
+    if (mode !== "github") { location.hash = ""; return; }
+    const where = ghRepoFromLocation();
+    if (gh) {
+      app.innerHTML = '<div class="wrap"><div class="form-page"><h1>Pengelola</h1><p>Anda masuk sebagai pengelola repositori <strong>' + esc(gh.owner + "/" + gh.repo) + '</strong> (branch ' + esc(gh.branch) + ').</p>' +
+        '<div class="form-actions"><a class="btn btn-primary" href="#kirim">+ Unggah Artikel</a><button class="btn" type="button" id="btn-logout">Keluar</button></div></div></div>';
+      $("#btn-logout").addEventListener("click", async () => {
+        try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
+        gh = null; canWrite = false;
+        await loadStatic(); applyModeUI(); toast("Anda sudah keluar"); location.hash = "";
+      });
+      return;
+    }
+    app.innerHTML =
+      '<div class="wrap"><div class="form-page"><h1>Masuk sebagai pengelola</h1>' +
+      '<p>Pengelola mengunggah artikel langsung ke repositori <strong>' + esc(where.owner + "/" + where.repo) + '</strong>. Masuk memakai <em>personal access token</em> GitHub. Token hanya disimpan di browser ini.</p>' +
+      '<form class="submit" id="login" novalidate><fieldset><legend>Token GitHub</legend>' +
+        '<ol style="margin:0;padding-left:1.3em;display:grid;gap:6px;font-size:.95rem">' +
+          '<li>Buka <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</li>' +
+          '<li>Pada <strong>Repository access</strong>, pilih <em>Only select repositories</em>, lalu pilih <strong>' + esc(where.repo) + '</strong>.</li>' +
+          '<li>Pada <strong>Permissions → Repository permissions</strong>, ubah <strong>Contents</strong> menjadi <em>Read and write</em>.</li>' +
+          '<li>Klik <strong>Generate token</strong>, salin, lalu tempel di bawah.</li>' +
+        '</ol>' +
+        '<div class="field"><label for="token">Token</label><input type="text" id="token" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></div>' +
+        '<label style="display:flex;gap:8px;align-items:center;font-size:.92rem"><input type="checkbox" id="remember" checked> Ingat di browser ini</label>' +
+      '</fieldset><p class="error" id="login-error" hidden></p>' +
+      '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-login">Masuk</button><a class="btn" href="#">Batal</a></div></form></div></div>';
+    $("#login").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const token = $("#token").value.trim(); const err = $("#login-error"); const btn = $("#btn-login");
+      if (!token) { err.textContent = "Tempel token GitHub Anda terlebih dahulu."; err.hidden = false; return; }
+      btn.disabled = true; btn.textContent = "Memeriksa…";
+      const problem = await ghSignIn(token);
+      if (problem) { btn.disabled = false; btn.textContent = "Masuk"; err.textContent = problem; err.hidden = false; return; }
+      if ($("#remember").checked) lsSet(TOKEN_KEY, token);
+      applyModeUI(); toast("Masuk sebagai pengelola"); location.hash = "kirim";
     });
   }
 
@@ -835,6 +998,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     if (h.startsWith("artikel-")) renderArticle(h.slice(8));
     else if (h.startsWith("ubah-")) renderForm(h.slice(5));
     else if (h === "kirim") renderForm(null);
+    else if (h === "masuk") renderLogin();
     else if (h === "berita" || h === "jurnal") { if (view.filter !== h) view.query = ""; renderHome(h); }
     else { if (view.filter !== "semua") view.query = ""; renderHome("semua"); }
     if (scroll) window.scrollTo(0, 0);
@@ -874,6 +1038,26 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     } catch (ex) { toast("Berkas cadangan tidak dikenali"); return; }
     toast("Memulihkan " + list.length + " artikel…");
     let n = 0, skipped = 0;
+    if (mode === "github") {
+      const recs = [];
+      for (const raw of list) {
+        if (!raw || !raw.id || !raw.title) continue;
+        const a = Object.assign({}, raw);
+        try {
+          const stamp = Date.now().toString(36);
+          if (a.cover) { const p = FILES_DIR + a.id + "-" + stamp + "-sampul.jpg"; await ghPutFile(p, a.cover.split(",")[1], "Impor sampul " + a.id); a.coverPath = p; }
+          if (a.pdf) { const p = FILES_DIR + a.id + "-" + stamp + ".pdf"; await ghPutFile(p, a.pdf.split(",")[1], "Impor PDF " + a.id); a.pdfPath = p; }
+        } catch (x) { skipped++; }
+        delete a.cover; delete a.pdf; delete a.coverId; delete a.pdfId;
+        recs.push(a);
+      }
+      try {
+        await ghSaveArticles(cur => { const ids = new Set(recs.map(r => r.id)); return cur.filter(x => !ids.has(x.id)).concat(recs); }, "Impor " + recs.length + " artikel");
+        n = recs.length;
+      } catch (x) { skipped = recs.length; }
+      toast(n + " artikel dipulihkan" + (skipped ? ", " + skipped + " gagal" : ""));
+      route(false); return;
+    }
     for (const raw of list) {
       if (!raw || !raw.id || !raw.title) continue;
       const a = Object.assign({}, raw);
@@ -902,6 +1086,22 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       ? "Artikel tersimpan di server dan langsung terlihat oleh semua pengunjung. Hanya Anda dan editor yang Anda undang yang dapat mengunggah, mengubah, atau menghapus."
       : "Tandeallo memadukan berita dan artikel jurnal. Kutipan APA tersedia di setiap artikel jurnal.";
     else if (mode === "closed") note.textContent = "Masuk ke akun claude.ai untuk membaca artikel.";
+    else if (mode === "github") note.textContent = canWrite
+      ? "Anda masuk sebagai pengelola. Artikel yang diterbitkan disimpan ke repositori GitHub dan muncul untuk semua pengunjung dalam 1–2 menit."
+      : "Tandeallo memadukan berita dan artikel jurnal. Kutipan APA tersedia di setiap artikel jurnal.";
+    const adm = $("#btn-admin");
+    adm.hidden = mode !== "github";
+    adm.textContent = gh ? "Pengelola" : "Masuk pengelola";
+  }
+
+  async function loadStatic() {
+    try {
+      const r = await fetch(CONTENT, { cache: "no-cache" });
+      if (!r.ok) return false;
+      const data = await r.json();
+      articles = Array.isArray(data) ? data : (data.articles || []);
+      return true;
+    } catch (e) { return false; }
   }
 
   /* ================= Boot ================= */
@@ -931,6 +1131,17 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       return;
     }
     if (mode === "closed") { applyModeUI(); route(true); return; }
+
+    if (/^https?:$/.test(location.protocol) && await loadStatic()) {
+      mode = "github"; canWrite = false; loaded = true;
+      const saved = lsGet(TOKEN_KEY);
+      if (saved) {
+        const problem = await ghSignIn(saved);
+        if (problem) { try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} toast("Sesi pengelola berakhir. Masuk lagi untuk mengunggah."); }
+      }
+      applyModeUI(); route(true);
+      return;
+    }
 
     const ok = await idbOpen();
     articles = await idbAll();
