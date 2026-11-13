@@ -1,27 +1,8 @@
 {
   "app": "tandeallo",
   "version": 1,
-  "updated": "2026-11-13T22:42:36.616Z",
+  "updated": "2026-11-13T22:43:36.949Z",
   "articles": [
-    {
-      "id": "contoh-2",
-      "type": "jurnal",
-      "contoh": true,
-      "rubrik": "Ilmu Lingkungan",
-      "title": "Pengaruh Restorasi Mangrove terhadap Kelimpahan Kepiting Bakau (Scylla serrata) di Pesisir Sulawesi Selatan",
-      "authors": "Andi Nurhaliza; Muh. Fajar Saputra; Rina Tandiarrang",
-      "affiliation": "Program Studi Ilmu Kelautan, Universitas Hasanuddin",
-      "date": "2026-10-28",
-      "volume": "4",
-      "issue": "2",
-      "pages": "101–118",
-      "doi": "10.00000/tdl.v4i2.112",
-      "keywords": "mangrove; restorasi; Scylla serrata; perikanan skala kecil",
-      "abstract": "Penelitian ini membandingkan kelimpahan kepiting bakau pada kawasan mangrove hasil restorasi berumur lima tahun dengan kawasan alami dan bekas tambak. Pengambilan sampel dilakukan dengan bubu lipat pada 18 stasiun selama enam bulan. Kelimpahan pada kawasan restorasi mencapai 82% dari kawasan alami dan berbeda nyata dengan bekas tambak (p < 0,05). Hasil ini menunjukkan restorasi berbasis hidrologi dapat memulihkan fungsi habitat dalam waktu relatif singkat.",
-      "body": "## Pendahuluan\n\nHutan mangrove merupakan habitat penting bagi kepiting bakau pada seluruh tahap hidupnya. Konversi mangrove menjadi tambak selama tiga dekade terakhir telah menurunkan produksi kepiting di banyak wilayah pesisir.\n\n## Metode\n\nPenelitian dilakukan pada Januari–Juni 2026 di tiga tipe lahan: mangrove alami, mangrove restorasi, dan bekas tambak. Setiap tipe lahan terdiri atas enam stasiun dengan sepuluh bubu lipat per stasiun.\n\n## Hasil dan Pembahasan\n\nRata-rata hasil tangkapan per unit upaya pada kawasan restorasi sebesar 3,1 ekor/bubu/malam, dibandingkan 3,8 pada kawasan alami dan 0,9 pada bekas tambak.\n\n## Kesimpulan\n\nRestorasi mangrove yang memulihkan aliran pasang surut efektif mengembalikan kelimpahan kepiting bakau.",
-      "references": "Alongi, D. M. (2014). Carbon cycling and storage in mangrove forests. Annual Review of Marine Science, 6, 195–219.\nLewis, R. R. (2005). Ecological engineering for successful management and restoration of mangrove forests. Ecological Engineering, 24(4), 403–418.",
-      "created": 2
-    },
     {
       "id": "contoh-4",
       "type": "jurnal",
