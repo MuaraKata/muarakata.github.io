@@ -1,7 +1,7 @@
 {
   "app": "tandeallo",
   "version": 1,
-  "updated": "2026-11-13T22:40:03.340Z",
+  "updated": "2026-11-13T22:42:36.616Z",
   "articles": [
     {
       "id": "contoh-2",
@@ -21,18 +21,6 @@
       "body": "## Pendahuluan\n\nHutan mangrove merupakan habitat penting bagi kepiting bakau pada seluruh tahap hidupnya. Konversi mangrove menjadi tambak selama tiga dekade terakhir telah menurunkan produksi kepiting di banyak wilayah pesisir.\n\n## Metode\n\nPenelitian dilakukan pada Januari–Juni 2026 di tiga tipe lahan: mangrove alami, mangrove restorasi, dan bekas tambak. Setiap tipe lahan terdiri atas enam stasiun dengan sepuluh bubu lipat per stasiun.\n\n## Hasil dan Pembahasan\n\nRata-rata hasil tangkapan per unit upaya pada kawasan restorasi sebesar 3,1 ekor/bubu/malam, dibandingkan 3,8 pada kawasan alami dan 0,9 pada bekas tambak.\n\n## Kesimpulan\n\nRestorasi mangrove yang memulihkan aliran pasang surut efektif mengembalikan kelimpahan kepiting bakau.",
       "references": "Alongi, D. M. (2014). Carbon cycling and storage in mangrove forests. Annual Review of Marine Science, 6, 195–219.\nLewis, R. R. (2005). Ecological engineering for successful management and restoration of mangrove forests. Ecological Engineering, 24(4), 403–418.",
       "created": 2
-    },
-    {
-      "id": "contoh-3",
-      "type": "berita",
-      "contoh": true,
-      "rubrik": "Kampus",
-      "title": "Seminar Nasional Literasi Data Digelar, 300 Peserta Ikut Daring",
-      "authors": "Tim Liputan",
-      "date": "2026-11-06",
-      "abstract": "Seminar membahas cara peneliti muda membagikan data penelitian secara terbuka tanpa melanggar privasi responden.",
-      "body": "Seminar nasional bertema literasi data penelitian berlangsung secara hibrida dan diikuti lebih dari 300 peserta dari berbagai kampus.\n\nPembicara menekankan pentingnya anonimisasi data sebelum diunggah ke repositori terbuka.",
-      "created": 3
     },
     {
       "id": "contoh-4",
