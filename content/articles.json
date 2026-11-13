@@ -1,20 +1,8 @@
 {
   "app": "tandeallo",
   "version": 1,
-  "updated": "2026-11-13T22:13:24.807Z",
+  "updated": "2026-11-13T22:40:03.340Z",
   "articles": [
-    {
-      "id": "contoh-1",
-      "type": "berita",
-      "contoh": true,
-      "rubrik": "Lingkungan",
-      "title": "Mangrove Pesisir Selatan Pulih, Nelayan Kepiting Kembali Panen",
-      "authors": "Redaksi Tandeallo",
-      "date": "2026-11-10",
-      "abstract": "Lima tahun setelah penanaman ulang, hutan mangrove di pesisir selatan kembali rapat. Hasil tangkapan kepiting bakau nelayan setempat naik hampir dua kali lipat.",
-      "body": "Pagi itu air sedang surut. Di sela akar-akar bakau yang mencuat dari lumpur, Daeng Rahman memeriksa satu per satu bubu yang ia pasang semalam. Hampir semuanya berisi.\n\n\"Dulu kami harus ke pulau seberang untuk dapat kepiting. Sekarang cukup di sini,\" katanya.\n\n## Lima tahun penanaman\n\nPenanaman ulang dimulai pada 2021 oleh kelompok tani hutan setempat bersama pemerintah desa. Sekitar 40.000 bibit *Rhizophora* ditanam di lahan bekas tambak yang ditinggalkan.\n\n> Kuncinya bukan menanam sebanyak-banyaknya, tetapi memastikan aliran pasang surut kembali normal.\n\nKelompok tani kini merencanakan ekowisata kecil berupa jalur papan di tepi hutan, dengan pemandu dari warga desa sendiri.",
-      "created": 1
-    },
     {
       "id": "contoh-2",
       "type": "jurnal",
