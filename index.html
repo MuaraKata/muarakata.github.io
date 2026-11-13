@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tandeallo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Tandeallo — portal yang memadukan jurnal ilmiah dan berita. Unggah, baca, dan kutip artikel langsung dari browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: masthead + lead story beside a "terbitan jurnal" index, then a mixed feed; article pages use a reading column with a metadata rail. */
+:root {
+  --bg: #f3f5f4;
+  --surface: #ffffff;
+  --ink: #14211f;
+  --muted: #5a6865;
+  --line: #d6dddb;
+  --accent: #0f5c55;      /* jurnal / ilmiah */
+  --accent-ink: #ffffff;
+  --news: #b8760f;        /* berita */
+  --news-soft: #f6ead3;
+  --accent-soft: #dcebe8;
+  --danger: #b3261e;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Literata", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1615; --surface: #172120; --ink: #e5ecea; --muted: #9aa9a6; --line: #2a3735;
+    --accent: #5cc2b5; --accent-ink: #062521; --news: #e8b04d; --news-soft: #3a2c12; --accent-soft: #163a36;
+    --danger: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1615; --surface: #172120; --ink: #e5ecea; --muted: #9aa9a6; --line: #2a3735;
+  --accent: #5cc2b5; --accent-ink: #062521; --news: #e8b04d; --news-soft: #3a2c12; --accent-soft: #163a36;
+  --danger: #ff8a80; color-scheme: dark;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 17px; line-height: 1.6;
+}
+img { max-width: 100%; display: block; }
+[hidden] { display: none !important; }
+a { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wrap {
+  max-width: 1180px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* ---------- Masthead ---------- */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 30; background: var(--surface); }
+.masthead { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; }
+.masthead .wrap { display: flex; align-items: center; gap: 20px; padding-block: 14px; flex-wrap: wrap; }
+.brand { display: flex; align-items: baseline; gap: 10px; text-decoration: none; margin-right: auto; }
+.brand-name { font-family: var(--font-display); font-weight: 800; font-size: 1.7rem; letter-spacing: -0.02em; }
+.brand-name span { color: var(--accent); }
+.brand-tag { font-family: var(--font-mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.nav a { font-family: var(--font-display); font-weight: 500; text-decoration: none; padding: 6px 12px; border-radius: 999px; font-size: .95rem; }
+.nav a:hover { background: var(--bg); }
+.nav a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; justify-content: center;
+  font-family: var(--font-display); font-weight: 700; font-size: .95rem;
+  padding: 9px 16px; border-radius: var(--radius); border: 1px solid var(--line);
+  background: var(--surface); cursor: pointer; text-decoration: none; line-height: 1.2;
+}
+.btn:hover { border-color: var(--ink); }
+.btn-primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn-primary:hover { filter: brightness(1.08); border-color: var(--accent); }
+.btn-danger { color: var(--danger); }
+.btn-danger.armed { background: var(--danger); color: var(--surface); border-color: var(--danger); }
+.btn-sm { padding: 6px 11px; font-size: .85rem; }
+
+/* ---------- Ticker / toolbar ---------- */
+.toolbar .wrap { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding-block: 18px 6px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 6px 14px; border-radius: 999px; cursor: pointer; font-family: var(--font-display); font-weight: 500; font-size: .9rem; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.search { flex: 1 1 240px; min-width: 0; display: flex; }
+.search input { width: 100%; padding: 9px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.today { font-family: var(--font-mono); font-size: .78rem; color: var(--muted); }
+
+/* ---------- Tags ---------- */
+.tag { display: inline-block; font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; padding: 3px 8px; border-radius: 3px; font-weight: 500; }
+.tag-berita { background: var(--news-soft); color: var(--news); }
+.tag-jurnal { background: var(--accent-soft); color: var(--accent); }
+.tag-contoh { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+.meta { font-family: var(--font-mono); font-size: .78rem; color: var(--muted); }
+
+/* ---------- Lead ---------- */
+.lead { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 32px; padding-block: 18px 34px; }
+.lead-story { text-decoration: none; display: grid; gap: 14px; }
+.lead-story h2 { font-family: var(--font-display); font-size: clamp(1.7rem, 3.4vw, 2.6rem); line-height: 1.08; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.lead-story:hover h2 { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.lead-story p { margin: 0; color: var(--muted); max-width: 62ch; }
+.cover { aspect-ratio: 16 / 9; width: 100%; max-width: 100%; border-radius: var(--radius); overflow: hidden; background: var(--accent-soft); position: relative; }
+.cover img { width: 100%; height: 100%; object-fit: cover; }
+.cover-fallback { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 16px; font-family: var(--font-display); font-weight: 800; font-size: clamp(1.1rem, 3vw, 1.8rem); color: var(--accent); letter-spacing: -0.01em;
+  background:
+    repeating-linear-gradient(135deg, transparent 0 18px, color-mix(in srgb, var(--accent) 10%, transparent) 18px 19px),
+    var(--accent-soft); }
+.cover-fallback.berita { color: var(--news);
+  background:
+    repeating-linear-gradient(90deg, transparent 0 22px, color-mix(in srgb, var(--news) 14%, transparent) 22px 23px),
+    var(--news-soft); }
+
+.issue { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 4px; align-self: start; }
+.issue-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-bottom: 2px solid var(--ink); padding-bottom: 10px; margin-bottom: 6px; }
+.issue-head h3 { margin: 0; font-family: var(--font-display); font-size: 1.15rem; }
+.issue-item { display: grid; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--line); text-decoration: none; }
+.issue-item:last-child { border-bottom: 0; }
+.issue-item strong { font-family: var(--font-display); font-weight: 700; line-height: 1.25; font-size: 1.02rem; }
+.issue-item:hover strong { color: var(--accent); }
+.issue-item .auth { font-size: .88rem; color: var(--muted); font-style: italic; }
+
+/* ---------- Feed ---------- */
+.section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 8px 0 16px; }
+.section-title h2 { font-family: var(--font-display); font-size: 1.4rem; margin: 0; }
+.feed { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 22px; padding-bottom: 48px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; text-decoration: none; min-width: 0; transition: border-color .15s, transform .15s; }
+.card:hover { border-color: var(--ink); transform: translateY(-2px); }
+.card .cover { border-radius: 0; }
+.card-body { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 9px; flex: 1; }
+.card h3 { font-family: var(--font-display); font-size: 1.18rem; line-height: 1.22; margin: 0; text-wrap: balance; }
+.card p { margin: 0; font-size: .95rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.card .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.card-foot { margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--line); }
+.card.jurnal .card-body { border-top: 4px solid var(--accent); }
+.card.jurnal .abs-label { font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); }
+.empty { padding: 48px 20px; text-align: center; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); grid-column: 1 / -1; }
+
+/* ---------- Article ---------- */
+.article { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 48px; padding-block: 28px 64px; }
+.article-main { min-width: 0; max-width: 720px; }
+.back { font-family: var(--font-display); text-decoration: none; color: var(--muted); font-size: .92rem; display: inline-block; margin-bottom: 18px; }
+.back:hover { color: var(--ink); }
+.eyebrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+.article h1 { font-family: var(--font-display); font-size: clamp(1.9rem, 4.4vw, 3rem); line-height: 1.06; letter-spacing: -0.025em; margin: 0 0 16px; text-wrap: balance; }
+.byline { font-size: 1.02rem; margin-bottom: 4px; }
+.affil { color: var(--muted); font-size: .92rem; font-style: italic; margin-bottom: 14px; }
+.abstract { background: var(--accent-soft); border-radius: var(--radius); padding: 18px 22px; margin: 22px 0; }
+.abstract h2 { font-family: var(--font-mono); font-size: .75rem; text-transform: uppercase; letter-spacing: .1em; margin: 0 0 8px; color: var(--accent); }
+.abstract p { margin: 0; font-size: .98rem; }
+.kw { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+.kw span { font-family: var(--font-mono); font-size: .75rem; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); color: var(--accent); padding: 2px 8px; border-radius: 999px; }
+.prose { font-size: 1.08rem; line-height: 1.75; }
+.prose p { margin: 0 0 1.1em; }
+.prose h3 { font-family: var(--font-display); font-size: 1.35rem; margin: 1.6em 0 .5em; line-height: 1.2; }
+.prose blockquote { margin: 1.4em 0; padding: 4px 0 4px 20px; border-left: 3px solid var(--news); font-style: italic; color: var(--muted); }
+.article.berita .prose > p:first-child::first-letter { font-family: var(--font-display); font-weight: 800; float: left; font-size: 3.4em; line-height: .9; padding: 6px 10px 0 0; color: var(--news); }
+.refs { margin-top: 36px; border-top: 2px solid var(--ink); padding-top: 14px; }
+.refs h2 { font-family: var(--font-display); font-size: 1.2rem; margin: 0 0 10px; }
+.refs ol { padding-left: 1.4em; margin: 0; font-size: .93rem; display: grid; gap: 8px; overflow-wrap: anywhere; }
+.article-cover { margin: 8px 0 26px; }
+.caption { font-size: .82rem; color: var(--muted); margin-top: 6px; font-family: var(--font-mono); }
+
+.rail { display: flex; flex-direction: column; gap: 16px; align-self: start; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 92px); }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 10px; }
+.panel h3 { margin: 0; font-family: var(--font-mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 500; }
+.panel dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: .85rem; }
+.panel dt { color: var(--muted); font-family: var(--font-mono); font-size: .75rem; padding-top: 2px; }
+.panel dd { margin: 0; overflow-wrap: anywhere; }
+.cite-box { font-size: .85rem; background: var(--bg); border-radius: 4px; padding: 10px; overflow-wrap: anywhere; user-select: all; }
+.pdf-frame { width: 100%; height: 80vh; border: 1px solid var(--line); border-radius: var(--radius); margin-top: 18px; background: var(--surface); }
+
+/* ---------- Form ---------- */
+.form-page { padding-block: 28px 64px; max-width: 860px; }
+.form-page h1 { font-family: var(--font-display); font-size: clamp(1.8rem, 4vw, 2.4rem); margin: 0 0 6px; letter-spacing: -0.02em; }
+.form-page > p { color: var(--muted); margin: 0 0 24px; }
+form.submit { display: grid; gap: 22px; }
+fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px 20px; margin: 0; background: var(--surface); display: grid; gap: 16px; min-width: 0; }
+legend { font-family: var(--font-display); font-weight: 700; padding: 0 6px; }
+.field { display: grid; gap: 6px; min-width: 0; }
+.field label { font-family: var(--font-display); font-weight: 500; font-size: .95rem; }
+.field .hint { font-size: .8rem; color: var(--muted); font-family: var(--font-mono); }
+.field input[type="text"], .field input[type="date"], .field input[type="url"], .field select, .field textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg);
+}
+.field textarea { resize: vertical; min-height: 110px; line-height: 1.55; }
+.field textarea.big { min-height: 280px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 16px; }
+.type-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.type-pick label { border: 2px solid var(--line); border-radius: var(--radius); padding: 14px 16px; cursor: pointer; display: grid; gap: 4px; background: var(--surface); }
+.type-pick input { position: absolute; opacity: 0; pointer-events: none; }
+.type-pick strong { font-family: var(--font-display); font-size: 1.1rem; }
+.type-pick span { font-size: .85rem; color: var(--muted); }
+.type-pick label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.type-pick label.berita:has(input:checked) { border-color: var(--news); background: var(--news-soft); }
+.type-pick label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; background: var(--bg); }
+.drop.over { border-color: var(--accent); }
+.drop .preview { max-height: 180px; border-radius: 4px; object-fit: cover; }
+.form-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.error { color: var(--danger); font-size: .9rem; }
+
+/* ---------- Footer ---------- */
+footer { border-top: 1px solid var(--line); background: var(--surface); }
+footer .wrap { padding-block: 28px; display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
+.foot-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 18px; border-radius: 999px; font-family: var(--font-display); font-size: .92rem; z-index: 50; box-shadow: 0 6px 24px rgba(0,0,0,.2); max-width: calc(100% - 32px); }
+
+@media (max-width: 900px) {
+  .lead, .article { grid-template-columns: minmax(0, 1fr); }
+  .rail { position: static; }
+}
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+  .brand-tag { display: none; }
+  .type-pick { grid-template-columns: 1fr; }
+  .masthead .wrap { gap: 10px; }
+  .masthead { position: static; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <a class="brand" href="#">
+      <span class="brand-name">Tande<span>allo</span></span>
+      <span class="brand-tag">Jurnal &amp; Warta</span>
+    </a>
+    <nav class="nav" aria-label="Navigasi utama">
+      <a href="#" data-nav="beranda">Beranda</a>
+      <a href="#berita" data-nav="berita">Berita</a>
+      <a href="#jurnal" data-nav="jurnal">Jurnal</a>
+      <a href="#kirim" class="btn btn-primary btn-sm" data-nav="kirim">+ Unggah Artikel</a>
+    </nav>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<footer>
+  <div class="wrap">
+    <p>Artikel tersimpan di browser perangkat ini (IndexedDB). Buat cadangan secara berkala, lalu pulihkan di perangkat lain lewat tombol Impor.</p>
+    <div class="foot-actions">
+      <button class="btn btn-sm" id="btn-export" type="button">Ekspor cadangan (.json)</button>
+      <button class="btn btn-sm" id="btn-copy-backup" type="button">Salin cadangan</button>
+      <label class="btn btn-sm" for="import-file">Impor cadangan</label>
+      <input type="file" id="import-file" accept="application/json,.json" hidden>
+    </div>
+  </div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ================= Storage (IndexedDB, with in-memory fallback) ================= */
+  const DB_NAME = "tandeallo", STORE = "articles";
+  let db = null, memory = [];
+
+  function openDB() {
+    return new Promise((resolve) => {
+      try {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: "id" });
+        req.onsuccess = () => { db = req.result; resolve(true); };
+        req.onerror = () => resolve(false);
+        req.onblocked = () => resolve(false);
+      } catch (e) { resolve(false); }
+    });
+  }
+  function tx(mode) { return db.transaction(STORE, mode).objectStore(STORE); }
+  function getAll() {
+    if (!db) return Promise.resolve(memory.slice());
+    return new Promise((res) => {
+      try { const r = tx("readonly").getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); }
+      catch (e) { res(memory.slice()); }
+    });
+  }
+  function put(a) {
+    if (!db) { memory = memory.filter(x => x.id !== a.id).concat(a); return Promise.resolve(); }
+    return new Promise((res, rej) => {
+      try { const r = tx("readwrite").put(a); r.onsuccess = () => res(); r.onerror = () => rej(r.error); }
+      catch (e) { rej(e); }
+    });
+  }
+  function remove(id) {
+    if (!db) { memory = memory.filter(x => x.id !== id); return Promise.resolve(); }
+    return new Promise((res) => {
+      try { const r = tx("readwrite").delete(id); r.onsuccess = () => res(); r.onerror = () => res(); }
+      catch (e) { res(); }
+    });
+  }
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  /* ================= Sample content (ditandai sebagai contoh) ================= */
+  const SAMPLES = [
+    {
+      id: "contoh-1", type: "berita", contoh: true, rubrik: "Lingkungan",
+      title: "Mangrove Pesisir Selatan Pulih, Nelayan Kepiting Kembali Panen",
+      authors: "Redaksi Tandeallo", date: "2026-11-10",
+      abstract: "Lima tahun setelah penanaman ulang, hutan mangrove di pesisir selatan kembali rapat. Hasil tangkapan kepiting bakau nelayan setempat naik hampir dua kali lipat.",
+      body: "Pagi itu air sedang surut. Di sela akar-akar bakau yang mencuat dari lumpur, Daeng Rahman memeriksa satu per satu bubu yang ia pasang semalam. Hampir semuanya berisi.\n\n\"Dulu kami harus ke pulau seberang untuk dapat kepiting. Sekarang cukup di sini,\" katanya.\n\n## Lima tahun penanaman\n\nPenanaman ulang dimulai pada 2021 oleh kelompok tani hutan setempat bersama pemerintah desa. Sekitar 40.000 bibit *Rhizophora* ditanam di lahan bekas tambak yang ditinggalkan.\n\n> Kuncinya bukan menanam sebanyak-banyaknya, tetapi memastikan aliran pasang surut kembali normal.\n\nKelompok tani kini merencanakan ekowisata kecil berupa jalur papan di tepi hutan, dengan pemandu dari warga desa sendiri.",
+      cover: "", pdf: "", pdfName: "", keywords: "", references: "", affiliation: "", doi: "", volume: "", issue: "", pages: ""
+    },
+    {
+      id: "contoh-2", type: "jurnal", contoh: true, rubrik: "Ilmu Lingkungan",
+      title: "Pengaruh Restorasi Mangrove terhadap Kelimpahan Kepiting Bakau (Scylla serrata) di Pesisir Sulawesi Selatan",
+      authors: "Andi Nurhaliza; Muh. Fajar Saputra; Rina Tandiarrang",
+      affiliation: "Program Studi Ilmu Kelautan, Universitas Hasanuddin",
+      date: "2026-10-28", volume: "4", issue: "2", pages: "101–118", doi: "10.00000/tdl.v4i2.112",
+      keywords: "mangrove; restorasi; Scylla serrata; perikanan skala kecil",
+      abstract: "Penelitian ini membandingkan kelimpahan kepiting bakau pada kawasan mangrove hasil restorasi berumur lima tahun dengan kawasan alami dan bekas tambak. Pengambilan sampel dilakukan dengan bubu lipat pada 18 stasiun selama enam bulan. Kelimpahan pada kawasan restorasi mencapai 82% dari kawasan alami dan berbeda nyata dengan bekas tambak (p < 0,05). Hasil ini menunjukkan restorasi berbasis hidrologi dapat memulihkan fungsi habitat dalam waktu relatif singkat.",
+      body: "## Pendahuluan\n\nHutan mangrove merupakan habitat penting bagi kepiting bakau pada seluruh tahap hidupnya. Konversi mangrove menjadi tambak selama tiga dekade terakhir telah menurunkan produksi kepiting di banyak wilayah pesisir.\n\n## Metode\n\nPenelitian dilakukan pada Januari–Juni 2026 di tiga tipe lahan: mangrove alami, mangrove restorasi, dan bekas tambak. Setiap tipe lahan terdiri atas enam stasiun dengan sepuluh bubu lipat per stasiun.\n\n## Hasil dan Pembahasan\n\nRata-rata hasil tangkapan per unit upaya pada kawasan restorasi sebesar 3,1 ekor/bubu/malam, dibandingkan 3,8 pada kawasan alami dan 0,9 pada bekas tambak.\n\n## Kesimpulan\n\nRestorasi mangrove yang memulihkan aliran pasang surut efektif mengembalikan kelimpahan kepiting bakau.",
+      references: "Alongi, D. M. (2014). Carbon cycling and storage in mangrove forests. Annual Review of Marine Science, 6, 195–219.\nLewis, R. R. (2005). Ecological engineering for successful management and restoration of mangrove forests. Ecological Engineering, 24(4), 403–418.",
+      cover: "", pdf: "", pdfName: ""
+    },
+    {
+      id: "contoh-3", type: "berita", contoh: true, rubrik: "Kampus",
+      title: "Seminar Nasional Literasi Data Digelar, 300 Peserta Ikut Daring",
+      authors: "Tim Liputan", date: "2026-11-06",
+      abstract: "Seminar membahas cara peneliti muda membagikan data penelitian secara terbuka tanpa melanggar privasi responden.",
+      body: "Seminar nasional bertema literasi data penelitian berlangsung secara hibrida dan diikuti lebih dari 300 peserta dari berbagai kampus.\n\nPembicara menekankan pentingnya anonimisasi data sebelum diunggah ke repositori terbuka.",
+      cover: "", pdf: "", pdfName: "", keywords: "", references: "", affiliation: "", doi: "", volume: "", issue: "", pages: ""
+    },
+    {
+      id: "contoh-4", type: "jurnal", contoh: true, rubrik: "Pendidikan",
+      title: "Pemanfaatan Bahasa Daerah dalam Pembelajaran Matematika Kelas Awal",
+      authors: "Yohanis Patandianan; Sri Wahyuni",
+      affiliation: "Fakultas Keguruan dan Ilmu Pendidikan, Universitas Kristen Indonesia Toraja",
+      date: "2026-10-15", volume: "4", issue: "2", pages: "119–134", doi: "",
+      keywords: "bahasa ibu; matematika; sekolah dasar",
+      abstract: "Studi kuasi-eksperimen pada 64 siswa kelas II menunjukkan penggunaan bahasa daerah sebagai pengantar meningkatkan pemahaman konsep bilangan secara signifikan dibanding kelas kontrol.",
+      body: "## Pendahuluan\n\nBanyak siswa kelas awal di daerah belum fasih berbahasa Indonesia ketika masuk sekolah.\n\n## Hasil\n\nRata-rata skor pascates kelompok eksperimen 78,4 dibanding 69,1 pada kelompok kontrol.",
+      references: "UNESCO. (2016). If you don't understand, how can you learn? Global Education Monitoring Report Policy Paper 24.",
+      cover: "", pdf: "", pdfName: ""
+    }
+  ];
+
+  /* ================= Helpers ================= */
+  const $ = (s, el = document) => el.querySelector(s);
+  const app = $("#app");
+  let articles = [];
+  let view = { filter: "semua", query: "" };
+  let pdfUrl = null;
+
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const uid = () => "a" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  function fmtDate(d) {
+    if (!d) return "";
+    const dt = new Date(d + (d.length === 10 ? "T00:00:00" : ""));
+    if (isNaN(dt)) return d;
+    return dt.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  }
+  const year = (d) => (d || "").slice(0, 4) || "t.t.";
+  const splitList = (s) => String(s || "").split(/[;\n]/).map(x => x.trim()).filter(Boolean);
+  function authorLine(a) {
+    const list = splitList(a.authors);
+    if (list.length <= 1) return list[0] || "";
+    return list.slice(0, -1).join(", ") + " & " + list[list.length - 1];
+  }
+  function wordCount(a) { return (String(a.body || "") + " " + String(a.abstract || "")).split(/\s+/).filter(Boolean).length; }
+  function readTime(a) { return Math.max(1, Math.round(wordCount(a) / 200)) + " menit baca"; }
+  function inline(s) {
+    return s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>");
+  }
+  function renderBody(text) {
+    return String(text || "").split(/\n\s*\n/).map(block => {
+      const b = esc(block.trim());
+      if (!b) return "";
+      if (b.startsWith("## ")) return "<h3>" + inline(b.slice(3)) + "</h3>";
+      if (b.startsWith("&gt; ")) return "<blockquote>" + inline(b.slice(5)).replace(/\n/g, "<br>") + "</blockquote>";
+      return "<p>" + inline(b).replace(/\n/g, "<br>") + "</p>";
+    }).join("");
+  }
+  function issueLabel(a) {
+    const parts = [];
+    if (a.volume) parts.push("Vol. " + a.volume);
+    if (a.issue) parts.push("No. " + a.issue);
+    let s = parts.join(" ");
+    if (a.date) s += (s ? " " : "") + "(" + year(a.date) + ")";
+    return s;
+  }
+  function citation(a) {
+    const authors = splitList(a.authors).join(", ");
+    let s = authors + " (" + year(a.date) + "). " + a.title + ". Tandeallo";
+    if (a.volume) s += ", " + a.volume + (a.issue ? "(" + a.issue + ")" : "");
+    if (a.pages) s += ", " + a.pages;
+    s += ".";
+    if (a.doi) s += " https://doi.org/" + a.doi.replace(/^https?:\/\/doi\.org\//, "");
+    return s;
+  }
+  function coverHTML(a) {
+    if (a.cover) return '<div class="cover"><img src="' + a.cover + '" alt="" loading="lazy"></div>';
+    const label = a.type === "jurnal" ? (issueLabel(a) || "Artikel Jurnal") : (a.rubrik || "Berita");
+    return '<div class="cover"><div class="cover-fallback ' + a.type + '">' + esc(label) + "</div></div>";
+  }
+  function tags(a) {
+    let t = '<span class="tag tag-' + a.type + '">' + (a.type === "jurnal" ? "Jurnal" : "Berita") + "</span>";
+    if (a.rubrik) t += ' <span class="meta">' + esc(a.rubrik) + "</span>";
+    if (a.contoh) t += ' <span class="tag tag-contoh">Contoh</span>';
+    return t;
+  }
+  function sorted(list) { return list.slice().sort((x, y) => (y.date || "").localeCompare(x.date || "") || (y.created || 0) - (x.created || 0)); }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $("#toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+  }
+  async function copyText(text, el) {
+    try { await navigator.clipboard.writeText(text); toast("Disalin ke papan klip"); }
+    catch (e) {
+      if (el) { const r = document.createRange(); r.selectNodeContents(el); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+      toast("Teks sudah dipilih, tekan Ctrl+C untuk menyalin");
+    }
+  }
+  function dataUrlToBlobUrl(dataUrl) {
+    try {
+      const [head, b64] = dataUrl.split(",");
+      const mime = (head.match(/data:(.*?);/) || [])[1] || "application/pdf";
+      const bin = atob(b64); const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return URL.createObjectURL(new Blob([arr], { type: mime }));
+    } catch (e) { return dataUrl; }
+  }
+  function readFile(file) {
+    return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(r.error); r.readAsDataURL(file); });
+  }
+  function resizeImage(file, max = 1400) {
+    return readFile(file).then(src => new Promise((res) => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, max / img.width);
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+        try { res(c.toDataURL("image/jpeg", 0.85)); } catch (e) { res(src); }
+      };
+      img.onerror = () => res(src);
+      img.src = src;
+    }));
+  }
+
+  /* ================= Views ================= */
+  function setNav(name) {
+    document.querySelectorAll("[data-nav]").forEach(a => {
+      if (a.dataset.nav === name && name !== "kirim") a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+  }
+
+  function renderHome(filter) {
+    view.filter = filter || "semua";
+    setNav(filter === "berita" ? "berita" : filter === "jurnal" ? "jurnal" : "beranda");
+    const all = sorted(articles);
+    const leadNews = all.find(a => a.type === "berita") || all[0];
+    const journals = all.filter(a => a.type === "jurnal").slice(0, 4);
+    const today = new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+    let lead = "";
+    if (view.filter === "semua" && !view.query && leadNews) {
+      lead = '<section class="wrap lead" aria-label="Sorotan">' +
+        '<a class="lead-story" href="#artikel-' + esc(leadNews.id) + '">' + coverHTML(leadNews) +
+          '<div class="eyebrow">' + tags(leadNews) + '<span class="meta">' + fmtDate(leadNews.date) + "</span></div>" +
+          "<h2>" + esc(leadNews.title) + "</h2><p>" + esc(leadNews.abstract) + "</p></a>" +
+        '<aside class="issue"><div class="issue-head"><h3>Terbitan Jurnal Terbaru</h3><span class="meta">' + esc(journals[0] ? issueLabel(journals[0]) : "") + "</span></div>" +
+          (journals.length ? journals.map(j =>
+            '<a class="issue-item" href="#artikel-' + esc(j.id) + '"><span class="meta">' + esc(j.pages ? "hlm. " + j.pages : fmtDate(j.date)) + (j.doi ? " · DOI" : "") + "</span><strong>" + esc(j.title) + '</strong><span class="auth">' + esc(authorLine(j)) + "</span></a>").join("")
+            : '<p class="meta">Belum ada artikel jurnal. <a href="#kirim">Unggah yang pertama</a>.</p>') +
+        "</aside></section>";
+    }
+
+    app.innerHTML =
+      '<section class="toolbar"><div class="wrap">' +
+        '<div class="seg" role="group" aria-label="Saring jenis">' +
+          ["semua", "berita", "jurnal"].map(f => '<button type="button" data-filter="' + f + '" aria-pressed="' + (view.filter === f) + '">' + f[0].toUpperCase() + f.slice(1) + "</button>").join("") +
+        "</div>" +
+        '<div class="search"><input id="q" type="search" placeholder="Cari judul, penulis, kata kunci…" aria-label="Cari artikel" value="' + esc(view.query) + '"></div>' +
+        '<span class="today">' + today + "</span>" +
+      "</div></section>" + lead +
+      '<section class="wrap"><div class="section-title"><h2 id="feed-title"></h2><span class="meta" id="feed-count"></span></div><div class="feed" id="feed"></div></section>';
+
+    $("#q").addEventListener("input", (e) => { view.query = e.target.value; renderFeed(); });
+    document.querySelectorAll("[data-filter]").forEach(b => b.addEventListener("click", () => {
+      const f = b.dataset.filter; location.hash = f === "semua" ? "" : f;
+      if (f === "semua") renderHome("semua");
+    }));
+    renderFeed();
+  }
+
+  function renderFeed() {
+    const q = view.query.trim().toLowerCase();
+    let list = sorted(articles).filter(a => view.filter === "semua" || a.type === view.filter);
+    if (q) list = list.filter(a => [a.title, a.authors, a.keywords, a.abstract, a.rubrik, a.body].join(" ").toLowerCase().includes(q));
+    const titles = { semua: "Semua Artikel", berita: "Berita", jurnal: "Artikel Jurnal" };
+    $("#feed-title").textContent = q ? 'Hasil pencarian "' + view.query.trim() + '"' : titles[view.filter];
+    $("#feed-count").textContent = list.length + " artikel";
+    $("#feed").innerHTML = list.length ? list.map(cardHTML).join("") :
+      '<div class="empty">' + (q ? "Tidak ada artikel yang cocok. Coba kata kunci lain." : 'Belum ada artikel di sini. <a href="#kirim">Unggah artikel pertama</a>.') + "</div>";
+  }
+
+  function cardHTML(a) {
+    if (a.type === "jurnal") {
+      return '<a class="card jurnal" href="#artikel-' + esc(a.id) + '"><div class="card-body">' +
+        '<div class="row">' + tags(a) + "</div>" +
+        "<h3>" + esc(a.title) + "</h3>" +
+        '<span class="meta">' + esc(authorLine(a)) + "</span>" +
+        (a.abstract ? '<span class="abs-label">Abstrak</span><p>' + esc(a.abstract) + "</p>" : "") +
+        '<div class="card-foot meta">' + esc(issueLabel(a) || fmtDate(a.date)) + (a.pdf ? " · PDF" : "") + (a.doi ? " · doi:" + esc(a.doi) : "") + "</div>" +
+        "</div></a>";
+    }
+    return '<a class="card berita" href="#artikel-' + esc(a.id) + '">' + coverHTML(a) + '<div class="card-body">' +
+      '<div class="row">' + tags(a) + "</div>" +
+      "<h3>" + esc(a.title) + "</h3>" +
+      (a.abstract ? "<p>" + esc(a.abstract) + "</p>" : "") +
+      '<div class="card-foot meta">' + fmtDate(a.date) + " · " + readTime(a) + "</div>" +
+      "</div></a>";
+  }
+
+  function renderArticle(id) {
+    const a = articles.find(x => x.id === id);
+    if (!a) { app.innerHTML = '<div class="wrap" style="padding-block:48px"><div class="empty">Artikel tidak ditemukan. <a href="#">Kembali ke beranda</a></div></div>'; return; }
+    setNav(a.type);
+    if (pdfUrl && pdfUrl.startsWith("blob:")) URL.revokeObjectURL(pdfUrl);
+    pdfUrl = a.pdf ? dataUrlToBlobUrl(a.pdf) : null;
+    const isJ = a.type === "jurnal";
+    const refList = String(a.references || "").split("\n").map(x => x.trim()).filter(Boolean);
+
+    app.innerHTML =
+      '<article class="wrap article ' + a.type + '"><div class="article-main">' +
+        '<a class="back" href="#' + (isJ ? "jurnal" : "berita") + '">← Kembali ke ' + (isJ ? "Jurnal" : "Berita") + "</a>" +
+        '<div class="eyebrow">' + tags(a) + (isJ && issueLabel(a) ? '<span class="meta">' + esc(issueLabel(a)) + "</span>" : "") + "</div>" +
+        "<h1>" + esc(a.title) + "</h1>" +
+        '<div class="byline">' + (isJ ? "" : "Oleh ") + "<strong>" + esc(authorLine(a)) + "</strong></div>" +
+        (a.affiliation ? '<div class="affil">' + esc(a.affiliation) + "</div>" : "") +
+        '<div class="meta">' + (isJ ? "Terbit " : "") + fmtDate(a.date) + " · " + readTime(a) + "</div>" +
+        (!isJ ? '<figure class="article-cover" style="margin-inline:0">' + coverHTML(a) + "</figure>" : "") +
+        (isJ && a.abstract ? '<section class="abstract"><h2>Abstrak</h2><p>' + esc(a.abstract) + "</p>" +
+          (a.keywords ? '<div class="kw"><span class="meta" style="border:0;padding:0;color:var(--muted)">Kata kunci:</span>' + splitList(a.keywords).map(k => "<span>" + esc(k) + "</span>").join("") + "</div>" : "") +
+        "</section>" : "") +
+        (!isJ && a.abstract ? '<p style="font-size:1.15rem;color:var(--muted);margin:0 0 1.2em">' + esc(a.abstract) + "</p>" : "") +
+        '<div class="prose">' + renderBody(a.body) + "</div>" +
+        (pdfUrl ? '<div id="pdf-slot"></div>' : "") +
+        (refList.length ? '<section class="refs"><h2>Daftar Pustaka</h2><ol>' + refList.map(r => "<li>" + esc(r) + "</li>").join("") + "</ol></section>" : "") +
+      "</div>" +
+      '<aside class="rail">' +
+        (pdfUrl ? '<div class="panel"><h3>Naskah lengkap</h3>' +
+          '<a class="btn btn-primary" href="' + pdfUrl + '" download="' + esc(a.pdfName || "artikel.pdf") + '" target="_blank" rel="noopener">Unduh PDF</a>' +
+          '<button class="btn" type="button" id="btn-view-pdf">Tampilkan PDF di halaman</button>' +
+          '<span class="meta">' + esc(a.pdfName || "") + "</span></div>" : "") +
+        (isJ ? '<div class="panel"><h3>Informasi artikel</h3><dl>' +
+          (a.volume ? "<dt>Volume</dt><dd>" + esc(a.volume) + "</dd>" : "") +
+          (a.issue ? "<dt>Nomor</dt><dd>" + esc(a.issue) + "</dd>" : "") +
+          (a.pages ? "<dt>Halaman</dt><dd>" + esc(a.pages) + "</dd>" : "") +
+          (a.doi ? '<dt>DOI</dt><dd><a href="https://doi.org/' + esc(a.doi) + '" target="_blank" rel="noopener">' + esc(a.doi) + "</a></dd>" : "") +
+          (a.rubrik ? "<dt>Bidang</dt><dd>" + esc(a.rubrik) + "</dd>" : "") +
+          "<dt>Terbit</dt><dd>" + fmtDate(a.date) + "</dd></dl></div>" +
+          '<div class="panel"><h3>Cara mengutip (APA)</h3><div class="cite-box" id="cite">' + esc(citation(a)) + '</div><button class="btn btn-sm" type="button" id="btn-cite">Salin kutipan</button></div>'
+          : "") +
+        '<div class="panel"><h3>Kelola</h3>' +
+          '<a class="btn btn-sm" href="#ubah-' + esc(a.id) + '">Ubah artikel</a>' +
+          '<button class="btn btn-sm btn-danger" type="button" id="btn-del">Hapus artikel</button>' +
+        "</div>" +
+      "</aside></article>";
+
+    const del = $("#btn-del");
+    del.addEventListener("click", async () => {
+      if (!del.classList.contains("armed")) {
+        del.classList.add("armed"); del.textContent = "Klik lagi untuk menghapus";
+        setTimeout(() => { if (del.isConnected) { del.classList.remove("armed"); del.textContent = "Hapus artikel"; } }, 4000);
+        return;
+      }
+      await remove(a.id); articles = articles.filter(x => x.id !== a.id);
+      toast("Artikel dihapus"); location.hash = isJ ? "jurnal" : "berita";
+    });
+    const c = $("#btn-cite"); if (c) c.addEventListener("click", () => copyText(citation(a), $("#cite")));
+    const v = $("#btn-view-pdf");
+    if (v) v.addEventListener("click", () => {
+      const slot = $("#pdf-slot");
+      if (slot.firstChild) { slot.innerHTML = ""; v.textContent = "Tampilkan PDF di halaman"; return; }
+      slot.innerHTML = '<iframe class="pdf-frame" title="Naskah PDF" src="' + pdfUrl + '"></iframe>';
+      v.textContent = "Sembunyikan PDF"; slot.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    window.scrollTo(0, 0);
+  }
+
+  function renderForm(editId) {
+    setNav("kirim");
+    const a = editId ? articles.find(x => x.id === editId) : null;
+    if (editId && !a) { location.hash = ""; return; }
+    const d = a || { type: "berita", date: new Date().toISOString().slice(0, 10) };
+    const draft = { cover: d.cover || "", pdf: d.pdf || "", pdfName: d.pdfName || "" };
+    const v = (k) => esc(d[k] || "");
+
+    app.innerHTML =
+      '<div class="wrap"><div class="form-page">' +
+      "<h1>" + (a ? "Ubah artikel" : "Unggah artikel") + "</h1>" +
+      "<p>Pilih jenis tulisan. Berita cocok untuk liputan dan opini; Jurnal untuk naskah ilmiah lengkap dengan abstrak, DOI, dan berkas PDF.</p>" +
+      '<form class="submit" id="f" novalidate>' +
+        '<div class="type-pick" role="radiogroup" aria-label="Jenis artikel">' +
+          '<label class="berita"><input type="radio" name="type" id="type-berita" value="berita"' + (d.type === "berita" ? " checked" : "") + '><strong>Berita</strong><span>Liputan, opini, kabar kampus</span></label>' +
+          '<label class="jurnal"><input type="radio" name="type" id="type-jurnal" value="jurnal"' + (d.type === "jurnal" ? " checked" : "") + '><strong>Jurnal</strong><span>Artikel penelitian dengan abstrak &amp; PDF</span></label>' +
+        "</div>" +
+        "<fieldset><legend>Identitas tulisan</legend>" +
+          '<div class="field"><label for="title">Judul *</label><input type="text" id="title" name="title" required value="' + v("title") + '"></div>' +
+          '<div class="grid-2">' +
+            '<div class="field"><label for="authors">Penulis *</label><input type="text" id="authors" name="authors" required value="' + v("authors") + '"><span class="hint">Pisahkan beberapa penulis dengan titik koma (;)</span></div>' +
+            '<div class="field"><label for="rubrik">Rubrik / bidang ilmu</label><input type="text" id="rubrik" name="rubrik" list="rubrik-list" value="' + v("rubrik") + '"><datalist id="rubrik-list">' +
+              [...new Set(articles.map(x => x.rubrik).filter(Boolean))].map(r => '<option value="' + esc(r) + '">').join("") + "</datalist></div>" +
+          "</div>" +
+          '<div class="grid-2">' +
+            '<div class="field"><label for="date">Tanggal terbit</label><input type="date" id="date" name="date" value="' + v("date") + '"></div>' +
+            '<div class="field j-only"><label for="affiliation">Afiliasi</label><input type="text" id="affiliation" name="affiliation" value="' + v("affiliation") + '"></div>' +
+          "</div>" +
+        "</fieldset>" +
+        '<fieldset class="j-only"><legend>Data terbitan jurnal</legend>' +
+          '<div class="grid-3">' +
+            '<div class="field"><label for="volume">Volume</label><input type="text" id="volume" name="volume" value="' + v("volume") + '"></div>' +
+            '<div class="field"><label for="issue">Nomor</label><input type="text" id="issue" name="issue" value="' + v("issue") + '"></div>' +
+            '<div class="field"><label for="pages">Halaman</label><input type="text" id="pages" name="pages" placeholder="mis. 101–118" value="' + v("pages") + '"></div>' +
+          "</div>" +
+          '<div class="field"><label for="doi">DOI</label><input type="text" id="doi" name="doi" placeholder="10.xxxx/xxxxx" value="' + v("doi") + '"></div>' +
+          '<div class="field"><label for="keywords">Kata kunci</label><input type="text" id="keywords" name="keywords" placeholder="kata kunci 1; kata kunci 2" value="' + v("keywords") + '"></div>' +
+        "</fieldset>" +
+        "<fieldset><legend>Isi</legend>" +
+          '<div class="field"><label for="abstract" id="abstract-label">Ringkasan / lead</label><textarea id="abstract" name="abstract">' + v("abstract") + "</textarea></div>" +
+          '<div class="field"><label for="body">Isi artikel</label><textarea class="big" id="body" name="body">' + v("body") + '</textarea><span class="hint">Pisahkan paragraf dengan baris kosong. "## Judul" = subjudul, "&gt; teks" = kutipan, **tebal**, *miring*.</span></div>' +
+          '<div class="field j-only"><label for="references">Daftar pustaka</label><textarea id="references" name="references">' + v("references") + '</textarea><span class="hint">Satu rujukan per baris</span></div>' +
+        "</fieldset>" +
+        "<fieldset><legend>Berkas</legend>" +
+          '<div class="grid-2">' +
+            '<div class="drop" id="drop-cover"><label for="cover">Gambar sampul (JPG/PNG)</label><input type="file" id="cover" accept="image/*"><img class="preview" id="cover-preview" alt="Pratinjau sampul"' + (draft.cover ? ' src="' + draft.cover + '"' : " hidden") + '><button type="button" class="btn btn-sm" id="cover-clear"' + (draft.cover ? "" : " hidden") + ">Hapus gambar</button></div>" +
+            '<div class="drop" id="drop-pdf"><label for="pdf">Naskah PDF</label><input type="file" id="pdf" accept="application/pdf,.pdf"><span class="meta" id="pdf-name">' + esc(draft.pdfName || "Belum ada berkas") + '</span><button type="button" class="btn btn-sm" id="pdf-clear"' + (draft.pdf ? "" : " hidden") + ">Hapus PDF</button></div>" +
+          "</div>" +
+        "</fieldset>" +
+        '<p class="error" id="form-error" hidden></p>' +
+        '<div class="form-actions"><button class="btn btn-primary" type="submit">' + (a ? "Simpan perubahan" : "Terbitkan") + '</button><a class="btn" href="' + (a ? "#artikel-" + esc(a.id) : "#") + '">Batal</a></div>' +
+      "</form></div></div>";
+
+    const form = $("#f");
+    function syncType() {
+      const isJ = form.type.value === "jurnal";
+      document.querySelectorAll(".j-only").forEach(el => { el.hidden = !isJ; });
+      $("#abstract-label").textContent = isJ ? "Abstrak" : "Ringkasan / lead";
+    }
+    form.querySelectorAll('input[name="type"]').forEach(r => r.addEventListener("change", syncType));
+    syncType();
+
+    async function setCover(file) {
+      if (!file || !file.type.startsWith("image/")) return;
+      draft.cover = await resizeImage(file);
+      const p = $("#cover-preview"); p.src = draft.cover; p.hidden = false; $("#cover-clear").hidden = false;
+    }
+    async function setPdf(file) {
+      if (!file) return;
+      if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { toast("Berkas harus berformat PDF"); return; }
+      if (file.size > 25 * 1024 * 1024) { toast("PDF terlalu besar (maks. 25 MB)"); return; }
+      draft.pdf = await readFile(file); draft.pdfName = file.name;
+      $("#pdf-name").textContent = file.name + " · " + (file.size / 1024 / 1024).toFixed(1) + " MB"; $("#pdf-clear").hidden = false;
+    }
+    $("#cover").addEventListener("change", e => setCover(e.target.files[0]));
+    $("#pdf").addEventListener("change", e => setPdf(e.target.files[0]));
+    $("#cover-clear").addEventListener("click", () => { draft.cover = ""; $("#cover-preview").hidden = true; $("#cover-clear").hidden = true; $("#cover").value = ""; });
+    $("#pdf-clear").addEventListener("click", () => { draft.pdf = ""; draft.pdfName = ""; $("#pdf-name").textContent = "Belum ada berkas"; $("#pdf-clear").hidden = true; $("#pdf").value = ""; });
+    [["#drop-cover", setCover], ["#drop-pdf", setPdf]].forEach(([sel, fn]) => {
+      const z = $(sel);
+      z.addEventListener("dragover", e => { e.preventDefault(); z.classList.add("over"); });
+      z.addEventListener("dragleave", () => z.classList.remove("over"));
+      z.addEventListener("drop", e => { e.preventDefault(); z.classList.remove("over"); if (e.dataTransfer.files[0]) fn(e.dataTransfer.files[0]); });
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const get = (k) => String(fd.get(k) || "").trim();
+      const err = $("#form-error");
+      const missing = [];
+      if (!get("title")) missing.push("judul");
+      if (!get("authors")) missing.push("penulis");
+      if (!get("body") && !get("abstract") && !draft.pdf) missing.push("isi, ringkasan, atau berkas PDF");
+      if (missing.length) { err.textContent = "Lengkapi dulu: " + missing.join(", ") + "."; err.hidden = false; err.scrollIntoView({ block: "center" }); return; }
+      err.hidden = true;
+      const type = get("type") || "berita";
+      const rec = {
+        id: a ? a.id : uid(), created: a ? a.created || Date.now() : Date.now(), contoh: false, type,
+        title: get("title"), authors: get("authors"), rubrik: get("rubrik"), date: get("date") || new Date().toISOString().slice(0, 10),
+        abstract: get("abstract"), body: get("body"),
+        affiliation: type === "jurnal" ? get("affiliation") : "", volume: type === "jurnal" ? get("volume") : "",
+        issue: type === "jurnal" ? get("issue") : "", pages: type === "jurnal" ? get("pages") : "",
+        doi: type === "jurnal" ? get("doi").replace(/^https?:\/\/(dx\.)?doi\.org\//, "") : "",
+        keywords: type === "jurnal" ? get("keywords") : "", references: type === "jurnal" ? get("references") : "",
+        cover: draft.cover, pdf: draft.pdf, pdfName: draft.pdfName
+      };
+      try {
+        await put(rec);
+        articles = articles.filter(x => x.id !== rec.id).concat(rec);
+        toast(a ? "Perubahan disimpan" : "Artikel diterbitkan");
+        location.hash = "artikel-" + rec.id;
+      } catch (ex) {
+        err.textContent = "Gagal menyimpan. Ruang penyimpanan browser mungkin penuh; coba perkecil berkas PDF atau hapus artikel lama.";
+        err.hidden = false;
+      }
+    });
+    window.scrollTo(0, 0);
+  }
+
+  /* ================= Router ================= */
+  function route() {
+    const h = decodeURIComponent(location.hash.replace(/^#/, ""));
+    if (h.startsWith("artikel-")) return renderArticle(h.slice(8));
+    if (h.startsWith("ubah-")) return renderForm(h.slice(5));
+    if (h === "kirim") return renderForm(null);
+    if (h === "berita" || h === "jurnal") { if (view.filter !== h) view.query = ""; return renderHome(h); }
+    view.query = view.filter === "semua" ? view.query : "";
+    renderHome("semua");
+    window.scrollTo(0, 0);
+  }
+  window.addEventListener("hashchange", route);
+
+  /* ================= Backup ================= */
+  function backupJSON() { return JSON.stringify({ app: "tandeallo", version: 1, exported: new Date().toISOString(), articles }, null, 2); }
+  let inFrame = false; try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
+  const exp = $("#btn-export");
+  if (inFrame) exp.hidden = true;
+  exp.addEventListener("click", () => {
+    const url = URL.createObjectURL(new Blob([backupJSON()], { type: "application/json" }));
+    const link = document.createElement("a"); link.href = url; link.download = "tandeallo-cadangan-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+    toast("Cadangan diunduh");
+  });
+  $("#btn-copy-backup").addEventListener("click", () => copyText(backupJSON()));
+  $("#import-file").addEventListener("change", async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const list = Array.isArray(data) ? data : data.articles;
+      if (!Array.isArray(list)) throw new Error("format");
+      let n = 0;
+      for (const a of list) { if (a && a.id && a.title) { await put(a); n++; } }
+      articles = await getAll(); toast(n + " artikel dipulihkan"); route();
+    } catch (ex) { toast("Berkas cadangan tidak dikenali"); }
+    e.target.value = "";
+  });
+
+  /* ================= Boot ================= */
+  (async function boot() {
+    const ok = await openDB();
+    articles = await getAll();
+    if (!articles.length && !lsGet("tandeallo-seeded")) {
+      for (const s of SAMPLES) { try { await put(s); } catch (e) {} }
+      articles = await getAll();
+      if (!articles.length) articles = SAMPLES.slice();
+      lsSet("tandeallo-seeded", "1");
+    }
+    if (!ok) toast("Penyimpanan browser tidak tersedia; artikel hanya tersimpan sampai halaman ditutup");
+    route();
+  })();
+})();
+</script>
+</body>
+</html>
