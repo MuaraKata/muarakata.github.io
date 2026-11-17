@@ -1,6 +1,29 @@
 {
   "app": "tandeallo",
   "version": 1,
-  "updated": "2026-11-13T22:44:26.900Z",
-  "articles": []
+  "updated": "2026-11-17T03:58:02.496Z",
+  "articles": [
+    {
+      "id": "amwk5wgsqkzd16",
+      "created": 1794887881226,
+      "contoh": false,
+      "type": "berita",
+      "title": "Info",
+      "authors": "Wisar",
+      "rubrik": "Admin",
+      "date": "2026-11-17",
+      "abstract": "Hdhdbdhrrbb",
+      "body": "Hhehehehhe",
+      "affiliation": "",
+      "volume": "",
+      "issue": "",
+      "pages": "",
+      "doi": "",
+      "keywords": "",
+      "references": "",
+      "pdfName": "",
+      "coverPath": "",
+      "pdfPath": ""
+    }
+  ]
 }
