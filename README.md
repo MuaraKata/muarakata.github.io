@@ -21,6 +21,12 @@ Artikel disimpan langsung di repositori ini: teksnya di `content/articles.json`,
 
 Setiap kali artikel diterbitkan, diubah, atau dihapus, halaman membuat *commit* ke branch `main`. GitHub Pages memperbarui website dalam 1–2 menit. Token hanya disimpan di browser Anda. Klik **Pengelola → Keluar** untuk menghapusnya dari browser itu.
 
+## Kiriman naskah dari pengunjung
+
+Siapa pun bisa mengirim naskah lewat menu **Kirim Naskah** tanpa membuat akun. Naskah **tidak tampil** di website sampai pengelola menerimanya di halaman **Tinjau Naskah**.
+
+Naskah masuk disimpan di Google Drive pengelola lewat Google Apps Script (gratis). Cara memasangnya ada di [`apps-script/PANDUAN.md`](apps-script/PANDUAN.md). Menu **Kirim Naskah** baru muncul setelah kotak masuk disambungkan.
+
 ## Fitur
 
 - Dua jenis tulisan:

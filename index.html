@@ -199,11 +199,23 @@ legend { font-family: var(--font-display); font-weight: 700; padding: 0 6px; }
 .type-pick label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .type-pick label.berita:has(input:checked) { border-color: var(--news); background: var(--news-soft); }
 .type-pick label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-.drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; background: var(--bg); }
+.drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; background: var(--bg); min-width: 0; }
+.drop input[type="file"] { max-width: 100%; min-width: 0; }
 .drop.over { border-color: var(--accent); }
 .drop .preview { max-height: 180px; border-radius: 4px; object-fit: cover; }
 .form-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .error { color: var(--danger); font-size: .9rem; }
+
+/* ---------- Inbox ---------- */
+.inbox { display: grid; gap: 16px; }
+.inbox-item { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; display: grid; gap: 10px; min-width: 0; }
+.inbox-item h2 { font-family: var(--font-display); font-size: 1.2rem; margin: 0; line-height: 1.25; text-wrap: balance; overflow-wrap: anywhere; }
+.inbox-item details summary { cursor: pointer; font-family: var(--font-display); font-size: .92rem; }
+.inbox-item .prose { font-size: .98rem; margin-top: 10px; overflow-wrap: anywhere; }
+.inbox-item .abstract { margin: 10px 0; }
+.inbox-item .confirm { display: grid; gap: 8px; }
+.inbox-done { color: var(--muted); font-size: .95rem; }
+.trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
 /* ---------- Footer ---------- */
 footer { border-top: 1px solid var(--line); background: var(--surface); }
@@ -239,6 +251,8 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       <a href="#" data-nav="beranda">Beranda</a>
       <a href="#berita" data-nav="berita">Berita</a>
       <a href="#jurnal" data-nav="jurnal">Jurnal</a>
+      <a href="#kirim-naskah" data-nav="naskah" hidden>Kirim Naskah</a>
+      <a href="#tinjau" data-nav="tinjau" hidden>Tinjau Naskah</a>
       <a href="#kirim" class="btn btn-primary btn-sm" data-nav="kirim">+ Unggah Artikel</a>
     </nav>
   </div>
@@ -285,6 +299,30 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   const GH_DEFAULT = { owner: "WisarTandeallo", repo: "Tandeallo" };
   const CONTENT = "content/articles.json", FILES_DIR = "content/files/", TOKEN_KEY = "tandeallo-gh-token";
   let gh = null; // { owner, repo, branch, token } once the manager is signed in
+  // Public submissions go to a Google Apps Script web app (apps-script/Code.gs); its URL lives in content/config.json.
+  const CONFIG = "content/config.json", INBOX_KEY = "tandeallo-inbox-key";
+  const INBOX_URL_RE = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[\w-]+\/exec$/;
+  let submitUrl = "";
+  async function inbox(payload) {
+    let r;
+    try {
+      // text/plain keeps this a "simple" request, so the browser sends no preflight Apps Script cannot answer.
+      r = await fetch(submitUrl, { method: "POST", body: JSON.stringify(payload), headers: { "Content-Type": "text/plain;charset=utf-8" }, cache: "no-store", redirect: "follow" });
+    } catch (e) { throw { code: "inbox_net" }; }
+    let data = null;
+    try { data = await r.json(); } catch (e) { throw { code: "inbox_bad" }; }
+    if (!data || !data.ok) throw { code: "inbox_" + ((data && data.error) || "err"), message: data && data.detail };
+    return data;
+  }
+  function inboxErrorText(e) {
+    const c = e && e.code;
+    if (c === "inbox_kunci") return "Kunci admin salah. Salin lagi kunci dari Log eksekusi fungsi setup di Apps Script.";
+    if (c === "inbox_net" || c === "inbox_bad") return "Kotak masuk tidak bisa dihubungi. Periksa koneksi, dan pastikan aplikasi web diterapkan dengan akses \"Siapa saja\".";
+    if (c === "inbox_tidak-ada") return "Naskah ini sudah tidak ada di kotak masuk. Muat ulang halaman.";
+    if (c === "inbox_server") return "Kotak masuk mengalami galat" + (e.message ? " (" + e.message + ")" : "") + ".";
+    if (c && String(c).startsWith("gh_")) return ghErrorText(e);
+    return "Permintaan gagal. Coba lagi.";
+  }
   let loaded = false, loadSlow = false, loadError = false, loadTimer = null;
 
   function idbOpen() {
@@ -815,9 +853,12 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     });
   }
 
-  function renderForm(editId) {
-    if (!canWrite) { toast("Hanya pengelola yang dapat mengunggah artikel"); location.hash = ""; return; }
-    setNav("kirim");
+  function renderForm(editId, opts) {
+    const sub = !!(opts && opts.submission);
+    if (sub && (mode !== "github" || !submitUrl)) { toast("Pengiriman naskah belum dibuka"); location.hash = ""; return; }
+    if (!sub && !canWrite) { toast("Hanya pengelola yang dapat mengunggah artikel"); location.hash = ""; return; }
+    setNav(sub ? "naskah" : "kirim");
+    const maxMb = sub ? 10 : 20;
     const a = editId ? articles.find(x => x.id === editId) : null;
     if (editId && !a) {
       app.innerHTML = '<div class="wrap" style="padding-block:48px">' + (statusBox() || '<div class="empty">Artikel tidak ditemukan. <a href="#">Kembali ke beranda</a></div>') + "</div>";
@@ -835,10 +876,11 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
     app.innerHTML =
       '<div class="wrap"><div class="form-page">' +
-      "<h1>" + (a ? "Ubah artikel" : "Unggah artikel") + "</h1>" +
+      "<h1>" + (sub ? "Kirim naskah" : a ? "Ubah artikel" : "Unggah artikel") + "</h1>" +
+      (sub ? "<p>Kirim berita atau artikel jurnal Anda ke redaksi Tandeallo. Setiap naskah ditinjau dulu dan baru tampil di website setelah diterima. Kami menghubungi Anda lewat email.</p>" :
       "<p>Pilih jenis tulisan. Berita cocok untuk liputan dan opini; Jurnal untuk naskah ilmiah lengkap dengan abstrak, DOI, dan berkas PDF." +
         (mode === "shared" ? " Artikel yang diterbitkan langsung terlihat oleh semua pengunjung." : "") +
-        (mode === "github" ? " Artikel disimpan ke repositori GitHub dan terlihat oleh semua pengunjung sekitar 1–2 menit setelah terbit." : "") + "</p>" +
+        (mode === "github" ? " Artikel disimpan ke repositori GitHub dan terlihat oleh semua pengunjung sekitar 1–2 menit setelah terbit." : "") + "</p>") +
       '<form class="submit" id="f" novalidate>' +
         '<div class="type-pick" role="radiogroup" aria-label="Jenis artikel">' +
           '<label class="berita"><input type="radio" name="type" id="type-berita" value="berita"' + (d.type === "berita" ? " checked" : "") + '><strong>Berita</strong><span>Liputan, opini, kabar kampus</span></label>' +
@@ -852,17 +894,17 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
               [...new Set(articles.map(x => x.rubrik).filter(Boolean))].map(r => '<option value="' + esc(r) + '">').join("") + "</datalist></div>" +
           "</div>" +
           '<div class="grid-2">' +
-            '<div class="field"><label for="date">Tanggal terbit</label><input type="date" id="date" name="date" value="' + v("date") + '"></div>' +
+            (sub ? "" : '<div class="field"><label for="date">Tanggal terbit</label><input type="date" id="date" name="date" value="' + v("date") + '"></div>') +
             '<div class="field j-only"><label for="affiliation">Afiliasi</label><input type="text" id="affiliation" name="affiliation" value="' + v("affiliation") + '"></div>' +
           "</div>" +
         "</fieldset>" +
-        '<fieldset class="j-only"><legend>Data terbitan jurnal</legend>' +
-          '<div class="grid-3">' +
+        '<fieldset class="j-only"><legend>' + (sub ? "Data artikel jurnal" : "Data terbitan jurnal") + '</legend>' +
+          (sub ? "" : '<div class="grid-3">' +
             '<div class="field"><label for="volume">Volume</label><input type="text" id="volume" name="volume" value="' + v("volume") + '"></div>' +
             '<div class="field"><label for="issue">Nomor</label><input type="text" id="issue" name="issue" value="' + v("issue") + '"></div>' +
             '<div class="field"><label for="pages">Halaman</label><input type="text" id="pages" name="pages" placeholder="mis. 101–118" value="' + v("pages") + '"></div>' +
           "</div>" +
-          '<div class="field"><label for="doi">DOI</label><input type="text" id="doi" name="doi" placeholder="10.xxxx/xxxxx" value="' + v("doi") + '"></div>' +
+          '<div class="field"><label for="doi">DOI</label><input type="text" id="doi" name="doi" placeholder="10.xxxx/xxxxx" value="' + v("doi") + '"></div>') +
           '<div class="field"><label for="keywords">Kata kunci</label><input type="text" id="keywords" name="keywords" placeholder="kata kunci 1; kata kunci 2" value="' + v("keywords") + '"></div>' +
         "</fieldset>" +
         "<fieldset><legend>Isi</legend>" +
@@ -873,11 +915,19 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         "<fieldset><legend>Berkas</legend>" +
           '<div class="grid-2">' +
             '<div class="drop" id="drop-cover"><label for="cover">Gambar sampul (JPG/PNG)</label><input type="file" id="cover" accept="image/*"><img class="preview" id="cover-preview" alt="Pratinjau sampul"' + (previewSrc ? ' src="' + esc(previewSrc) + '"' : " hidden") + '><button type="button" class="btn btn-sm" id="cover-clear"' + (previewSrc ? "" : " hidden") + ">Hapus gambar</button></div>" +
-            '<div class="drop" id="drop-pdf"><label for="pdf">Naskah PDF (maks. 20 MB)</label><input type="file" id="pdf" accept="application/pdf,.pdf"><span class="meta" id="pdf-name">' + esc(draft.pdfName || "Belum ada berkas") + '</span><button type="button" class="btn btn-sm" id="pdf-clear"' + (hasPdf ? "" : " hidden") + ">Hapus PDF</button></div>" +
+            '<div class="drop" id="drop-pdf"><label for="pdf">Naskah PDF (maks. ' + maxMb + ' MB)</label><input type="file" id="pdf" accept="application/pdf,.pdf"><span class="meta" id="pdf-name">' + esc(draft.pdfName || "Belum ada berkas") + '</span><button type="button" class="btn btn-sm" id="pdf-clear"' + (hasPdf ? "" : " hidden") + ">Hapus PDF</button></div>" +
           "</div>" +
         "</fieldset>" +
+        (sub ? "<fieldset><legend>Kontak pengirim</legend>" +
+          '<div class="grid-2">' +
+            '<div class="field"><label for="sender">Nama pengirim</label><input type="text" id="sender" name="sender" autocomplete="name"></div>' +
+            '<div class="field"><label for="email">Email *</label><input type="email" id="email" name="email" required autocomplete="email"><span class="hint">Tidak ditampilkan di website</span></div>' +
+          "</div>" +
+          '<label style="display:flex;gap:10px;align-items:flex-start;font-size:.95rem"><input type="checkbox" id="agree" name="agree" style="margin-top:5px"> <span>Saya menyatakan naskah ini karya asli, belum pernah diterbitkan di tempat lain, dan saya berhak mengirimkannya untuk diterbitkan.</span></label>' +
+          '<div class="trap" aria-hidden="true"><label for="website">Website</label><input type="text" id="website" name="website" tabindex="-1" autocomplete="off"></div>' +
+        "</fieldset>" : "") +
         '<p class="error" id="form-error" hidden></p>' +
-        '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-submit">' + (a ? "Simpan perubahan" : "Terbitkan") + '</button><a class="btn" href="' + (a ? "#artikel-" + esc(a.id) : "#") + '">Batal</a></div>' +
+        '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-submit">' + (sub ? "Kirim naskah" : a ? "Simpan perubahan" : "Terbitkan") + '</button><a class="btn" href="' + (a ? "#artikel-" + esc(a.id) : "#") + '">Batal</a></div>' +
       "</form></div></div>";
 
     const form = $("#f");
@@ -903,7 +953,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     async function setPdf(file) {
       if (!file) return;
       if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { toast("Berkas harus berformat PDF"); return; }
-      if (file.size > 20 * 1024 * 1024) { toast("PDF terlalu besar (maks. 20 MB)"); return; }
+      if (file.size > maxMb * 1024 * 1024) { toast("PDF terlalu besar (maks. " + maxMb + " MB)"); return; }
       if (remoteFiles()) { draft.pdfBlob = file; draft.pdf = ""; }
       else draft.pdf = await readFile(file);
       draft.pdfName = file.name;
@@ -920,6 +970,39 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       z.addEventListener("drop", e => { e.preventDefault(); z.classList.remove("over"); if (e.dataTransfer.files[0]) fn(e.dataTransfer.files[0]); });
     });
 
+    async function sendSubmission(get, showErr) {
+      const btn = $("#btn-submit");
+      btn.disabled = true; btn.textContent = "Mengirim…";
+      try {
+        const type = get("type") === "jurnal" ? "jurnal" : "berita";
+        const isJ = type === "jurnal";
+        await inbox({
+          action: "submit", website: get("website"), name: get("sender"), email: get("email"),
+          article: {
+            type, title: get("title"), authors: get("authors"), rubrik: get("rubrik"),
+            affiliation: isJ ? get("affiliation") : "", abstract: get("abstract"), body: get("body"),
+            references: isJ ? get("references") : "", keywords: isJ ? get("keywords") : ""
+          },
+          pdfName: draft.pdfBlob ? draft.pdfName : "",
+          pdf: draft.pdfBlob ? await blobToB64(draft.pdfBlob) : "",
+          cover: draft.coverBlob ? await blobToB64(draft.coverBlob) : ""
+        });
+        app.innerHTML = '<div class="wrap"><div class="form-page"><h1>Naskah terkirim</h1>' +
+          "<p>Terima kasih. Redaksi akan meninjau naskah <strong>" + esc(get("title")) + "</strong> dan menghubungi Anda di <strong>" + esc(get("email")) + "</strong>. Naskah tampil di website setelah diterima.</p>" +
+          '<div class="form-actions"><a class="btn btn-primary" href="#">Kembali ke beranda</a><a class="btn" href="#kirim-naskah">Kirim naskah lain</a></div></div></div>';
+        // Leave #kirim-naskah so the menu link and "Kirim naskah lain" open a fresh form.
+        history.replaceState(null, "", location.pathname + location.search + "#terkirim");
+        window.scrollTo(0, 0);
+      } catch (ex) {
+        btn.disabled = false; btn.textContent = "Kirim naskah";
+        const c = ex && ex.code;
+        showErr(c === "inbox_data" ? "Periksa kembali judul, penulis, isi, dan email Anda." :
+          c === "inbox_berkas" ? "Berkas tidak bisa diterima. PDF harus berupa berkas PDF asli, maksimal 10 MB." :
+          c === "inbox_net" || c === "inbox_bad" ? "Naskah gagal dikirim. Periksa koneksi internet lalu coba lagi." :
+          "Naskah gagal dikirim. Coba lagi beberapa saat lagi.");
+      }
+    }
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(form);
@@ -930,8 +1013,11 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       if (!get("title")) missing.push("judul");
       if (!get("authors")) missing.push("penulis");
       if (!get("body") && !get("abstract") && !(draft.pdf || draft.pdfId || draft.pdfPath || draft.pdfBlob)) missing.push("isi, ringkasan, atau berkas PDF");
+      if (sub && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(get("email"))) missing.push("email yang valid");
+      if (sub && !form.agree.checked) missing.push("centang pernyataan keaslian naskah");
       if (missing.length) { showErr("Lengkapi dulu: " + missing.join(", ") + "."); return; }
       err.hidden = true;
+      if (sub) { await sendSubmission(get, showErr); return; }
       const btn = $("#btn-submit"); const label = btn.textContent;
       btn.disabled = true; btn.textContent = "Menyimpan…";
       try {
@@ -998,13 +1084,171 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     });
   }
 
+  function renderReview() {
+    if (mode !== "github" || !canWrite) { toast("Masuk sebagai pengelola untuk meninjau naskah"); location.hash = mode === "github" ? "masuk" : ""; return; }
+    setNav("tinjau");
+    let key = lsGet(INBOX_KEY) || "";
+    const guide = "https://github.com/" + gh.owner + "/" + gh.repo + "/blob/" + gh.branch + "/apps-script/PANDUAN.md";
+    app.innerHTML = '<div class="wrap"><div class="form-page"><h1>Tinjau naskah</h1>' +
+      "<p>Naskah kiriman pengunjung menunggu di sini dan belum tampil di website. Klik <strong>Terima &amp; terbitkan</strong> untuk menampilkannya, atau <strong>Tolak</strong> untuk membuangnya.</p>" +
+      '<div class="inbox" id="inbox-list"></div>' +
+      '<details id="inbox-settings" style="margin-top:28px"' + (submitUrl && key ? "" : " open") + '><summary style="cursor:pointer;font-family:var(--font-display);font-weight:700">Pengaturan kotak masuk</summary>' +
+        '<form class="submit" id="inbox-form" novalidate style="margin-top:14px"><fieldset><legend>Google Apps Script</legend>' +
+          '<p style="margin:0;font-size:.92rem">Naskah disimpan di Google Drive Anda lewat Google Apps Script. Ikuti <a href="' + esc(guide) + '" target="_blank" rel="noopener">panduan pemasangan</a> (sekitar 5 menit), lalu isi dua kolom di bawah.</p>' +
+          '<div class="field"><label for="inbox-url">URL aplikasi web</label><input type="url" id="inbox-url" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(submitUrl) + '"><span class="hint">Disimpan di repositori agar menu Kirim Naskah muncul untuk pengunjung</span></div>' +
+          '<div class="field"><label for="inbox-key">Kunci admin</label><input type="text" id="inbox-key" autocomplete="off" spellcheck="false" value="' + esc(key) + '"><span class="hint">Hanya disimpan di browser ini</span></div>' +
+        '</fieldset><p class="error" id="inbox-error" hidden></p>' +
+        '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-inbox-save">Simpan &amp; uji</button></div></form>' +
+      "</details></div></div>";
+
+    $("#inbox-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const url = $("#inbox-url").value.trim(), newKey = $("#inbox-key").value.trim();
+      const err = $("#inbox-error"), btn = $("#btn-inbox-save");
+      const fail = (m) => { err.textContent = m; err.hidden = false; btn.disabled = false; btn.textContent = "Simpan & uji"; };
+      if (!INBOX_URL_RE.test(url)) return fail("URL harus berupa URL aplikasi web Apps Script yang berakhiran /exec, misalnya https://script.google.com/macros/s/…/exec");
+      if (!newKey) return fail("Isi kunci admin dari Log eksekusi fungsi setup.");
+      err.hidden = true; btn.disabled = true; btn.textContent = "Menguji…";
+      const before = submitUrl;
+      submitUrl = url;
+      try { await inbox({ action: "list", key: newKey }); }
+      catch (ex) { submitUrl = before; return fail(inboxErrorText(ex)); }
+      lsSet(INBOX_KEY, newKey); key = newKey;
+      if (url !== before) {
+        btn.textContent = "Menyimpan…";
+        try { await ghPutFile(CONFIG, textToB64(JSON.stringify({ submitUrl: url }, null, 2) + "\n"), "Atur kotak masuk naskah"); }
+        catch (ex) { submitUrl = before; return fail(ghErrorText(ex)); }
+      }
+      btn.disabled = false; btn.textContent = "Simpan & uji";
+      applyModeUI();
+      $("#inbox-settings").open = false;
+      toast(url !== before ? "Tersambung. Menu Kirim Naskah muncul untuk pengunjung dalam 1–2 menit." : "Tersambung");
+      loadList();
+    });
+
+    async function loadList() {
+      const box = $("#inbox-list");
+      if (!box) return;
+      if (!submitUrl || !key) { box.innerHTML = '<div class="empty">Kotak masuk belum disambungkan. Isi pengaturan di bawah untuk mulai menerima naskah.</div>'; return; }
+      box.innerHTML = '<div class="empty">Memuat naskah…</div>';
+      let items;
+      try { items = (await inbox({ action: "list", key })).items || []; }
+      catch (ex) { box.innerHTML = '<div class="empty"></div>'; box.firstChild.textContent = inboxErrorText(ex); return; }
+      if (!$("#inbox-list")) return;
+      if (!items.length) { box.innerHTML = '<div class="empty">Belum ada naskah yang menunggu. Naskah baru juga diberitahukan lewat email.</div>'; return; }
+      box.innerHTML = items.map(itemHTML).join("");
+      items.forEach(it => wireItem(it, box.querySelector('[data-inbox="' + it.id + '"]')));
+    }
+
+    function itemHTML(it) {
+      const a = it.article || {};
+      const isJ = a.type === "jurnal";
+      const sent = it.submitted ? new Date(it.submitted).toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+      const refs = String(a.references || "").split("\n").map(x => x.trim()).filter(Boolean);
+      return '<article class="inbox-item" data-inbox="' + esc(it.id) + '">' +
+        '<div class="eyebrow" style="margin:0">' + '<span class="tag tag-' + (isJ ? "jurnal" : "berita") + '">' + (isJ ? "Jurnal" : "Berita") + "</span>" +
+          (a.rubrik ? '<span class="meta">' + esc(a.rubrik) + "</span>" : "") + '<span class="meta">Dikirim ' + esc(sent) + "</span></div>" +
+        "<h2>" + esc(a.title) + "</h2>" +
+        '<div class="meta">' + esc(authorLine(a)) + (a.affiliation ? " · " + esc(a.affiliation) : "") + "</div>" +
+        '<div class="meta">Pengirim: ' + esc(it.name || "-") + " · " + esc(it.email) + (it.pdfFileId ? " · PDF: " + esc(it.pdfName) : "") + (it.coverFileId ? " · ada gambar sampul" : "") + "</div>" +
+        "<details><summary>Baca isi naskah</summary>" +
+          (a.abstract ? '<section class="abstract"><h2>' + (isJ ? "Abstrak" : "Ringkasan") + "</h2><p>" + esc(a.abstract) + "</p>" +
+            (a.keywords ? '<div class="kw">' + splitList(a.keywords).map(k => "<span>" + esc(k) + "</span>").join("") + "</div>" : "") + "</section>" : "") +
+          '<div class="prose">' + (renderBody(a.body) || '<p class="meta">Tidak ada isi teks. Lihat PDF.</p>') + "</div>" +
+          (refs.length ? '<section class="refs"><h2>Daftar Pustaka</h2><ol>' + refs.map(r => "<li>" + esc(r) + "</li>").join("") + "</ol></section>" : "") +
+        "</details>" +
+        '<div class="form-actions" data-role="actions">' +
+          (it.pdfFileId ? '<button class="btn btn-sm" type="button" data-act="pdf">Lihat PDF</button>' : "") +
+          '<button class="btn btn-sm btn-primary" type="button" data-act="accept">Terima &amp; terbitkan</button>' +
+          '<button class="btn btn-sm btn-danger" type="button" data-act="reject">Tolak</button>' +
+        "</div>" +
+        '<div class="confirm" data-role="confirm" hidden><span style="font-size:.9rem">Tolak naskah ini? Naskah dan berkasnya dibuang dari kotak masuk.</span>' +
+          '<div class="form-actions"><button class="btn btn-sm btn-danger armed" type="button" data-act="reject-yes">Ya, tolak</button><button class="btn btn-sm" type="button" data-act="reject-no">Batal</button></div></div>' +
+        '<div data-role="pdf"></div>' +
+        '<p class="error" data-role="error" hidden style="margin:0"></p>' +
+      "</article>";
+    }
+
+    function wireItem(it, el) {
+      if (!el) return;
+      const q = (s) => el.querySelector(s);
+      const actions = q('[data-role="actions"]'), confirmBox = q('[data-role="confirm"]'), errEl = q('[data-role="error"]'), pdfSlot = q('[data-role="pdf"]');
+      const showErr = (ex) => { errEl.textContent = inboxErrorText(ex); errEl.hidden = false; };
+      const busy = (on) => el.querySelectorAll("button").forEach(b => { b.disabled = on; });
+      let pdfBlobUrl = "";
+      async function fileB64(kind) { return (await inbox({ action: "file", key, id: it.id, kind })).b64; }
+
+      el.addEventListener("click", async (e) => {
+        const btn = e.target.closest("[data-act]"); if (!btn) return;
+        const act = btn.dataset.act;
+        errEl.hidden = true;
+        if (act === "pdf") {
+          if (pdfSlot.firstChild) { pdfSlot.innerHTML = ""; btn.textContent = "Lihat PDF"; return; }
+          btn.disabled = true; btn.textContent = "Memuat PDF…";
+          try {
+            if (!pdfBlobUrl) pdfBlobUrl = URL.createObjectURL(dataUrlToBlob("data:application/pdf;base64," + await fileB64("pdf")));
+            pdfSlot.innerHTML = '<iframe class="pdf-frame" title="PDF naskah" src="' + pdfBlobUrl + '"></iframe>';
+            btn.textContent = "Sembunyikan PDF";
+          } catch (ex) { btn.textContent = "Lihat PDF"; showErr(ex); }
+          btn.disabled = false;
+        } else if (act === "reject") {
+          actions.hidden = true; confirmBox.hidden = false;
+        } else if (act === "reject-no") {
+          confirmBox.hidden = true; actions.hidden = false;
+        } else if (act === "reject-yes") {
+          busy(true); btn.textContent = "Menolak…";
+          try {
+            await inbox({ action: "decide", key, id: it.id, status: "ditolak" });
+            el.innerHTML = '<p class="inbox-done">Naskah <strong>' + esc(it.article.title) + "</strong> ditolak. Jangan lupa memberi kabar ke " + esc(it.email) + ".</p>";
+          } catch (ex) { busy(false); btn.textContent = "Ya, tolak"; showErr(ex); }
+        } else if (act === "accept") {
+          busy(true);
+          try {
+            const a = it.article || {};
+            const isJ = a.type === "jurnal";
+            const id = uid(), stamp = Date.now().toString(36);
+            let pdfPath = "", coverPath = "";
+            if (it.pdfFileId) {
+              btn.textContent = "Menyalin PDF…";
+              pdfPath = FILES_DIR + id + "-" + stamp + ".pdf";
+              await ghPutFile(pdfPath, await fileB64("pdf"), "Unggah PDF " + id);
+            }
+            if (it.coverFileId) {
+              btn.textContent = "Menyalin sampul…";
+              coverPath = FILES_DIR + id + "-" + stamp + "-sampul.jpg";
+              await ghPutFile(coverPath, await fileB64("cover"), "Unggah sampul " + id);
+            }
+            btn.textContent = "Menerbitkan…";
+            const rec = {
+              id, created: Date.now(), contoh: false, type: isJ ? "jurnal" : "berita",
+              title: String(a.title || ""), authors: String(a.authors || ""), rubrik: String(a.rubrik || ""),
+              date: new Date().toISOString().slice(0, 10), abstract: String(a.abstract || ""), body: String(a.body || ""),
+              affiliation: isJ ? String(a.affiliation || "") : "", volume: "", issue: "", pages: "", doi: "",
+              keywords: isJ ? String(a.keywords || "") : "", references: isJ ? String(a.references || "") : "",
+              pdfName: pdfPath ? String(it.pdfName || "naskah.pdf") : "", coverPath, pdfPath
+            };
+            await put(rec);
+            try { await inbox({ action: "decide", key, id: it.id, status: "diterbitkan" }); }
+            catch (ex) {
+              el.innerHTML = '<p class="inbox-done">Artikel sudah terbit, tetapi status naskah di kotak masuk gagal diperbarui. Muat ulang halaman, lalu klik <strong>Tolak</strong> pada naskah ini untuk membuangnya dari daftar. <a href="#artikel-' + esc(id) + '">Lihat artikel</a></p>';
+              return;
+            }
+            el.innerHTML = '<p class="inbox-done">Naskah <strong>' + esc(rec.title) + '</strong> diterbitkan dan tampil untuk pengunjung dalam 1–2 menit. <a href="#artikel-' + esc(id) + '">Lihat artikel</a> · <a href="#ubah-' + esc(id) + '">Isi volume, nomor, dan DOI</a></p>';
+          } catch (ex) { busy(false); btn.textContent = "Terima & terbitkan"; showErr(ex); }
+        }
+      });
+    }
+
+    loadList();
+  }
+
   function renderLogin() {
     setNav("");
     if (mode !== "github") { location.hash = ""; return; }
     const where = ghRepoFromLocation();
     if (gh) {
       app.innerHTML = '<div class="wrap"><div class="form-page"><h1>Pengelola</h1><p>Anda masuk sebagai pengelola repositori <strong>' + esc(gh.owner + "/" + gh.repo) + '</strong> (branch ' + esc(gh.branch) + ').</p>' +
-        '<div class="form-actions"><a class="btn btn-primary" href="#kirim">+ Unggah Artikel</a><button class="btn" type="button" id="btn-logout">Keluar</button></div></div></div>';
+        '<div class="form-actions"><a class="btn btn-primary" href="#kirim">+ Unggah Artikel</a><a class="btn" href="#tinjau">Tinjau Naskah</a><button class="btn" type="button" id="btn-logout">Keluar</button></div></div></div>';
       $("#btn-logout").addEventListener("click", async () => {
         try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
         gh = null; canWrite = false;
@@ -1045,6 +1289,8 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     else if (h.startsWith("ubah-")) renderForm(h.slice(5));
     else if (h === "kirim") renderForm(null);
     else if (h === "masuk") renderLogin();
+    else if (h === "kirim-naskah") renderForm(null, { submission: true });
+    else if (h === "tinjau") renderReview();
     else if (h === "berita" || h === "jurnal") { if (view.filter !== h) view.query = ""; renderHome(h); }
     else { if (view.filter !== "semua") view.query = ""; renderHome("semua"); }
     if (scroll) window.scrollTo(0, 0);
@@ -1054,7 +1300,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   // Re-render after live data changes without disturbing what the reader is doing.
   function refresh() {
     const h = location.hash.replace(/^#/, "");
-    if (h === "kirim" || h.startsWith("ubah-")) {
+    if (h === "kirim" || h === "kirim-naskah" || h === "tinjau" || h.startsWith("ubah-")) {
       if (!$("#f")) route(false); // the form was waiting for data
       return;
     }
@@ -1125,6 +1371,8 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
   function applyModeUI() {
     $('[data-nav="kirim"]').hidden = !canWrite;
+    $('[data-nav="naskah"]').hidden = !(mode === "github" && submitUrl);
+    $('[data-nav="tinjau"]').hidden = !(mode === "github" && canWrite);
     $('label[for="import-file"]').hidden = !canWrite;
     $("#btn-export").hidden = !canSaveFiles();
     const note = $("#storage-note");
@@ -1146,6 +1394,10 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       if (!r.ok) return false;
       const data = await r.json();
       articles = Array.isArray(data) ? data : (data.articles || []);
+      try {
+        const c = await fetch(CONFIG, { cache: "no-cache" });
+        if (c.ok) { const url = String((await c.json()).submitUrl || ""); submitUrl = INBOX_URL_RE.test(url) ? url : ""; }
+      } catch (e) {}
       return true;
     } catch (e) { return false; }
   }
