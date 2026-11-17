@@ -19,6 +19,10 @@ Artikel disimpan langsung di repositori ini: teksnya di `content/articles.json`,
    - **Permissions → Repository permissions → Contents:** *Read and write*
 3. Tempel token, klik **Masuk**, lalu gunakan **+ Unggah Artikel**.
 
+### Masuk dengan sandi tetap
+
+Setelah masuk pertama kali dengan token, halaman **Pengelola** menawarkan **Sandi pengelola**. Token GitHub (dan kunci kotak masuk naskah) dikunci dengan sandi itu memakai AES-256 lalu disimpan di `content/config.json`. Setelah itu cukup ketik sandi untuk masuk. Pakai sandi yang kuat, karena versi terkunci token itu bisa dilihat siapa saja di repositori publik. Kalau lupa sandi atau token kedaluwarsa, pilih **Lupa sandi? Masuk dengan token GitHub**, lalu atur sandi baru.
+
 Setiap kali artikel diterbitkan, diubah, atau dihapus, halaman membuat *commit* ke branch `main`. GitHub Pages memperbarui website dalam 1–2 menit. Token hanya disimpan di browser Anda. Klik **Pengelola → Keluar** untuk menghapusnya dari browser itu.
 
 ## Kiriman naskah dari pengunjung

@@ -1113,11 +1113,17 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       submitUrl = url;
       try { await inbox({ action: "list", key: newKey }); }
       catch (ex) { submitUrl = before; return fail(inboxErrorText(ex)); }
+      const keyChanged = newKey !== key;
       lsSet(INBOX_KEY, newKey); key = newKey;
       if (url !== before) {
         btn.textContent = "Menyimpan…";
-        try { await ghPutFile(CONFIG, textToB64(JSON.stringify({ submitUrl: url }, null, 2) + "\n"), "Atur kotak masuk naskah"); }
+        try { await ghUpdateConfig(cfg => { cfg.submitUrl = url; }, "Atur kotak masuk naskah"); }
         catch (ex) { submitUrl = before; return fail(ghErrorText(ex)); }
+      }
+      if (keyChanged && adminSeal) {
+        btn.textContent = "Menyimpan…";
+        try { await resealIfPossible(); } catch (ex) {}
+        if (!adminPass) toast("Kunci baru disimpan di browser ini. Atur ulang sandi di halaman Pengelola supaya kunci ini ikut terbawa saat masuk dengan sandi.");
       }
       btn.disabled = false; btn.textContent = "Simpan & uji";
       applyModeUI();
@@ -1242,43 +1248,150 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     loadList();
   }
 
+  /* ---------- Manager password: the GitHub token (and inbox key) sealed with AES-GCM ---------- */
+  // config.json is public, so the token is stored only in encrypted form. PBKDF2 makes each
+  // password guess slow; the password's strength is what keeps the token safe.
+  const SEAL_ITER = 600000, MIN_PASS = 10;
+  let adminSeal = null;   // { v, iter, salt, iv, data } from content/config.json
+  let adminPass = "";     // kept in memory only, to re-seal when the inbox key changes
+  const u8ToB64 = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const b64ToU8 = (b64) => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  async function sealKey(pass, salt, iter) {
+    const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pass), "PBKDF2", false, ["deriveKey"]);
+    return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+  }
+  async function sealSecrets(pass, secrets) {
+    const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await sealKey(pass, salt, SEAL_ITER);
+    const data = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(secrets))));
+    return { v: 1, iter: SEAL_ITER, salt: u8ToB64(salt), iv: u8ToB64(iv), data: u8ToB64(data) };
+  }
+  async function openSecrets(pass, seal) {
+    const key = await sealKey(pass, b64ToU8(seal.salt), seal.iter || SEAL_ITER);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64ToU8(seal.iv) }, key, b64ToU8(seal.data));
+    return JSON.parse(new TextDecoder().decode(plain)); // wrong password -> decrypt throws
+  }
+  // Read-modify-write content/config.json so the inbox URL and the password seal never overwrite each other.
+  async function ghUpdateConfig(mutate, message) {
+    const cur = await ghGetFile(CONFIG);
+    let cfg = {};
+    if (cur && cur.content) { try { cfg = JSON.parse(b64ToText(cur.content)) || {}; } catch (e) { cfg = {}; } }
+    mutate(cfg);
+    await ghReq("PUT", "contents/" + encPath(CONFIG), { message, content: textToB64(JSON.stringify(cfg, null, 2) + "\n"), branch: gh.branch, sha: cur ? cur.sha : undefined });
+    return cfg;
+  }
+  async function resealIfPossible() {
+    if (!adminPass || !gh) return;
+    const seal = await sealSecrets(adminPass, { token: gh.token, inboxKey: lsGet(INBOX_KEY) || "" });
+    await ghUpdateConfig(cfg => { cfg.admin = seal; }, "Perbarui sandi pengelola");
+    adminSeal = seal;
+  }
+
   function renderLogin() {
     setNav("");
     if (mode !== "github") { location.hash = ""; return; }
     const where = ghRepoFromLocation();
+
     if (gh) {
       app.innerHTML = '<div class="wrap"><div class="form-page"><h1>Pengelola</h1><p>Anda masuk sebagai pengelola repositori <strong>' + esc(gh.owner + "/" + gh.repo) + '</strong> (branch ' + esc(gh.branch) + ').</p>' +
-        '<div class="form-actions"><a class="btn btn-primary" href="#kirim">+ Unggah Artikel</a><a class="btn" href="#tinjau">Tinjau Naskah</a><button class="btn" type="button" id="btn-logout">Keluar</button></div></div></div>';
+        '<div class="form-actions"><a class="btn btn-primary" href="#kirim">+ Unggah Artikel</a><a class="btn" href="#tinjau">Tinjau Naskah</a><button class="btn" type="button" id="btn-logout">Keluar</button></div>' +
+        '<form class="submit" id="pass-form" novalidate style="margin-top:28px"><fieldset><legend>Sandi pengelola</legend>' +
+          '<p style="margin:0;font-size:.95rem">' + (adminSeal
+            ? "Sandi pengelola <strong>sudah aktif</strong>. Isi kolom di bawah untuk menggantinya."
+            : "Atur sandi supaya Anda cukup mengetik sandi saat masuk, tanpa token GitHub.") + "</p>" +
+          '<p class="meta" style="margin:0">Token GitHub Anda dikunci dengan sandi ini lalu disimpan di repositori. Gunakan minimal ' + MIN_PASS + " karakter, campur huruf, angka, dan simbol. Sandi tidak bisa dipulihkan; kalau lupa, masuk dengan token GitHub lalu atur sandi baru.</p>" +
+          '<div class="grid-2">' +
+            '<div class="field"><label for="pass1">Sandi baru</label><input type="password" id="pass1" autocomplete="new-password"></div>' +
+            '<div class="field"><label for="pass2">Ulangi sandi</label><input type="password" id="pass2" autocomplete="new-password"></div>' +
+          "</div>" +
+        '</fieldset><p class="error" id="pass-error" hidden></p>' +
+        '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-pass">' + (adminSeal ? "Ganti sandi" : "Simpan sandi") + "</button></div></form>" +
+        "</div></div>";
       $("#btn-logout").addEventListener("click", async () => {
-        try { localStorage.removeItem(TOKEN_KEY); } catch (e) {}
-        gh = null; canWrite = false;
+        try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(INBOX_KEY); } catch (e) {}
+        gh = null; canWrite = false; adminPass = "";
         await loadStatic(); applyModeUI(); toast("Anda sudah keluar"); location.hash = "";
+      });
+      $("#pass-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const p1 = $("#pass1").value, p2 = $("#pass2").value, err = $("#pass-error"), btn = $("#btn-pass");
+        const fail = (m) => { err.textContent = m; err.hidden = false; };
+        if (p1.length < MIN_PASS) return fail("Sandi minimal " + MIN_PASS + " karakter.");
+        if (!/[A-Za-z]/.test(p1) || !/[0-9]/.test(p1)) return fail("Sandi harus berisi huruf dan angka.");
+        if (p1 !== p2) return fail("Kedua sandi tidak sama.");
+        err.hidden = true; btn.disabled = true; btn.textContent = "Mengunci token…";
+        try {
+          const seal = await sealSecrets(p1, { token: gh.token, inboxKey: lsGet(INBOX_KEY) || "" });
+          btn.textContent = "Menyimpan…";
+          await ghUpdateConfig(cfg => { cfg.admin = seal; }, "Atur sandi pengelola");
+          adminSeal = seal; adminPass = p1;
+          $("#pass1").value = ""; $("#pass2").value = "";
+          toast("Sandi disimpan. Mulai 1–2 menit lagi Anda bisa masuk dengan sandi.");
+          renderLogin();
+        } catch (ex) {
+          btn.disabled = false; btn.textContent = adminSeal ? "Ganti sandi" : "Simpan sandi";
+          fail(ex && ex.code ? ghErrorText(ex) : "Sandi gagal disimpan. Browser ini mungkin terlalu lama; coba Chrome terbaru.");
+        }
       });
       return;
     }
+
+    const tokenSteps =
+      '<ol style="margin:0;padding-left:1.3em;display:grid;gap:6px;font-size:.95rem">' +
+        '<li>Buka <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</li>' +
+        '<li>Pada <strong>Repository access</strong>, pilih <em>Only select repositories</em>, lalu pilih <strong>' + esc(where.repo) + '</strong>.</li>' +
+        '<li>Pada <strong>Permissions → Repository permissions</strong>, ubah <strong>Contents</strong> menjadi <em>Read and write</em>.</li>' +
+        '<li>Klik <strong>Generate token</strong>, salin, lalu tempel di bawah.</li>' +
+      "</ol>";
     app.innerHTML =
       '<div class="wrap"><div class="form-page"><h1>Masuk sebagai pengelola</h1>' +
-      '<p>Pengelola mengunggah artikel langsung ke repositori <strong>' + esc(where.owner + "/" + where.repo) + '</strong>. Masuk memakai <em>personal access token</em> GitHub. Token hanya disimpan di browser ini.</p>' +
-      '<form class="submit" id="login" novalidate><fieldset><legend>Token GitHub</legend>' +
-        '<ol style="margin:0;padding-left:1.3em;display:grid;gap:6px;font-size:.95rem">' +
-          '<li>Buka <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a>.</li>' +
-          '<li>Pada <strong>Repository access</strong>, pilih <em>Only select repositories</em>, lalu pilih <strong>' + esc(where.repo) + '</strong>.</li>' +
-          '<li>Pada <strong>Permissions → Repository permissions</strong>, ubah <strong>Contents</strong> menjadi <em>Read and write</em>.</li>' +
-          '<li>Klik <strong>Generate token</strong>, salin, lalu tempel di bawah.</li>' +
-        '</ol>' +
+      (adminSeal
+        ? '<form class="submit" id="login-pass" novalidate><fieldset><legend>Sandi pengelola</legend>' +
+            '<div class="field"><label for="password">Sandi</label><input type="password" id="password" autocomplete="current-password"></div>' +
+            '<label style="display:flex;gap:8px;align-items:center;font-size:.92rem"><input type="checkbox" id="remember-pass" checked> Tetap masuk di browser ini</label>' +
+          '</fieldset><p class="error" id="pass-login-error" hidden></p>' +
+          '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-login-pass">Masuk</button><a class="btn" href="#">Batal</a></div></form>' +
+          '<details style="margin-top:24px"><summary style="cursor:pointer;font-family:var(--font-display)">Lupa sandi? Masuk dengan token GitHub</summary><div style="margin-top:14px">'
+        : "<p>Pengelola mengunggah artikel langsung ke repositori <strong>" + esc(where.owner + "/" + where.repo) + "</strong>. Masuk pertama kali memakai <em>personal access token</em> GitHub. Setelah itu Anda bisa mengatur sandi tetap.</p>") +
+      '<form class="submit" id="login" novalidate><fieldset><legend>Token GitHub</legend>' + tokenSteps +
         '<div class="field"><label for="token">Token</label><input type="text" id="token" autocomplete="off" spellcheck="false" placeholder="github_pat_…"></div>' +
         '<label style="display:flex;gap:8px;align-items:center;font-size:.92rem"><input type="checkbox" id="remember" checked> Ingat di browser ini</label>' +
       '</fieldset><p class="error" id="login-error" hidden></p>' +
-      '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-login">Masuk</button><a class="btn" href="#">Batal</a></div></form></div></div>';
+      '<div class="form-actions"><button class="btn ' + (adminSeal ? "" : "btn-primary") + '" type="submit" id="btn-login">Masuk dengan token</button>' + (adminSeal ? "" : '<a class="btn" href="#">Batal</a>') + "</div></form>" +
+      (adminSeal ? "</div></details>" : "") +
+      "</div></div>";
+
+    const lp = $("#login-pass");
+    if (lp) {
+      $("#password").focus();
+      lp.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const pass = $("#password").value, err = $("#pass-login-error"), btn = $("#btn-login-pass");
+        const fail = (m) => { btn.disabled = false; btn.textContent = "Masuk"; err.textContent = m; err.hidden = false; };
+        if (!pass) return fail("Ketik sandi pengelola.");
+        btn.disabled = true; btn.textContent = "Memeriksa…"; err.hidden = true;
+        let secrets;
+        try { secrets = await openSecrets(pass, adminSeal); }
+        catch (ex) { return fail("Sandi salah."); }
+        const problem = await ghSignIn(secrets.token);
+        if (problem) return fail(problem + " Token yang terkunci di sandi mungkin sudah kedaluwarsa: masuk dengan token GitHub baru lewat \"Lupa sandi?\", lalu atur ulang sandi.");
+        adminPass = pass;
+        if (secrets.inboxKey) lsSet(INBOX_KEY, secrets.inboxKey);
+        if ($("#remember-pass").checked) lsSet(TOKEN_KEY, secrets.token);
+        applyModeUI(); toast("Masuk sebagai pengelola"); location.hash = "kirim";
+      });
+    }
     $("#login").addEventListener("submit", async (e) => {
       e.preventDefault();
       const token = $("#token").value.trim(); const err = $("#login-error"); const btn = $("#btn-login");
       if (!token) { err.textContent = "Tempel token GitHub Anda terlebih dahulu."; err.hidden = false; return; }
       btn.disabled = true; btn.textContent = "Memeriksa…";
       const problem = await ghSignIn(token);
-      if (problem) { btn.disabled = false; btn.textContent = "Masuk"; err.textContent = problem; err.hidden = false; return; }
+      if (problem) { btn.disabled = false; btn.textContent = "Masuk dengan token"; err.textContent = problem; err.hidden = false; return; }
       if ($("#remember").checked) lsSet(TOKEN_KEY, token);
-      applyModeUI(); toast("Masuk sebagai pengelola"); location.hash = "kirim";
+      applyModeUI();
+      toast(adminSeal ? "Masuk dengan token. Atur ulang sandi di halaman Pengelola kalau Anda lupa sandi." : "Masuk. Atur sandi tetap di halaman Pengelola.");
+      if (adminSeal) location.hash = "kirim"; else renderLogin(); // already on #masuk: re-render to show the password form
     });
   }
 
@@ -1396,7 +1509,12 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       articles = Array.isArray(data) ? data : (data.articles || []);
       try {
         const c = await fetch(CONFIG, { cache: "no-cache" });
-        if (c.ok) { const url = String((await c.json()).submitUrl || ""); submitUrl = INBOX_URL_RE.test(url) ? url : ""; }
+        if (c.ok) {
+          const cfg = await c.json();
+          const url = String(cfg.submitUrl || ""); submitUrl = INBOX_URL_RE.test(url) ? url : "";
+          const seal = cfg.admin;
+          adminSeal = seal && seal.v === 1 && seal.salt && seal.iv && seal.data ? seal : null;
+        }
       } catch (e) {}
       return true;
     } catch (e) { return false; }
