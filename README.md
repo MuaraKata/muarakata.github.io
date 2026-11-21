@@ -2,7 +2,7 @@
 
 *Tempat semua cerita bermuara.*
 
-Website yang memadukan **jurnal ilmiah** dan **berita**. Semua kode ada di satu file `index.html`, tanpa server atau instalasi.
+Satu tempat menulis untuk cerita, puisi, esai, ide, dan tulisan ilmiah. Semua kode ada di satu file `index.html`, tanpa server atau instalasi.
 
 ## Terbitkan sebagai website sendiri (GitHub Pages, gratis)
 
@@ -29,18 +29,19 @@ Setiap kali artikel diterbitkan, diubah, atau dihapus, halaman membuat *commit* 
 
 ## Kiriman naskah dari pengunjung
 
-Siapa pun bisa mengirim naskah lewat menu **Kirim Naskah** tanpa membuat akun. Naskah **tidak tampil** di website sampai pengelola menerimanya di halaman **Tinjau Naskah**.
+Siapa pun bisa mengirim tulisan lewat menu **Kirim Tulisan** tanpa membuat akun. Naskah **tidak tampil** di website sampai pengelola menerimanya di halaman **Tinjau Naskah**.
 
-Naskah masuk disimpan di Google Drive pengelola lewat Google Apps Script (gratis). Cara memasangnya ada di [`apps-script/PANDUAN.md`](apps-script/PANDUAN.md). Menu **Kirim Naskah** baru muncul setelah kotak masuk disambungkan.
+Naskah masuk disimpan di Google Drive pengelola lewat Google Apps Script (gratis). Cara memasangnya ada di [`apps-script/PANDUAN.md`](apps-script/PANDUAN.md). Menu **Kirim Tulisan** baru muncul setelah kotak masuk disambungkan.
 
 ## Fitur
 
-- Dua jenis tulisan:
-  - **Berita:** judul, penulis, rubrik, ringkasan, isi, dan gambar sampul.
-  - **Jurnal:** ditambah afiliasi, volume/nomor/halaman, DOI, kata kunci, abstrak, daftar pustaka, dan **PDF** naskah lengkap (maks. 20 MB).
-- Beranda menampilkan berita utama dan panel *Terbitan Jurnal Terbaru*, diikuti daftar semua artikel.
-- Filter Semua / Berita / Jurnal, plus pencarian berdasarkan judul, penulis, dan kata kunci.
-- Halaman artikel jurnal punya abstrak, kata kunci, tombol tampilkan/unduh PDF, dan **kutipan APA** yang bisa disalin.
+- **Satu tempat menulis.** Tidak ada lagi pemisahan berita dan jurnal. Setiap tulisan punya **kategori** bebas (Cerpen, Puisi, Esai, Opini, Artikel Ilmiah, …), dan kategori itu menjadi tombol saring di beranda.
+- **PDF menjadi halaman web.** Saat menulis atau mengirim tulisan, pilih berkas PDF. Teksnya dibaca di browser (PDF.js), lalu judul, subjudul, dan paragrafnya dimasukkan ke kolom isi untuk dirapikan. Pembaca melihat halaman web biasa, bukan berkas PDF.
+  - Header, footer, dan nomor halaman dibuang. Kata yang terpenggal di akhir baris disambung lagi, dan tata letak dua kolom dibaca berurutan.
+  - Untuk puisi, isi kategori **Puisi** lebih dulu supaya setiap baris tetap terjaga.
+  - PDF hasil pindai (berupa gambar) tidak punya teks, jadi isinya perlu diketik.
+- Bagian tambahan opsional untuk tulisan ilmiah: afiliasi, kata kunci, dan daftar pustaka.
+- Setiap tulisan punya **kutipan APA** yang bisa disalin.
 - Format isi: baris kosong = paragraf baru, `## ` = subjudul, `> ` = kutipan, `**tebal**`, `*miring*`.
 
 ## Cara lain membuka

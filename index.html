@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Muara Kata</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Muara Kata: tempat semua cerita bermuara. Berita, artikel jurnal, dan karya tulis yang bisa dibaca, dikirim, dan dikutip.">
+<meta name="description" content="Muara Kata: tempat semua cerita bermuara. Cerita, puisi, esai, ide, dan tulisan ilmiah dalam satu tempat menulis.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -158,7 +158,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .prose p { margin: 0 0 1.1em; }
 .prose h3 { font-family: var(--font-display); font-size: 1.35rem; margin: 1.6em 0 .5em; line-height: 1.2; }
 .prose blockquote { margin: 1.4em 0; padding: 4px 0 4px 20px; border-left: 3px solid var(--news); font-style: italic; color: var(--muted); }
-.article.berita .prose > p:first-child::first-letter { font-family: var(--font-display); font-weight: 800; float: left; font-size: 3.4em; line-height: .9; padding: 6px 10px 0 0; color: var(--news); }
+.article:not(.poem) .prose > p:first-child::first-letter { font-family: var(--font-display); font-weight: 800; float: left; font-size: 3.4em; line-height: .9; padding: 6px 10px 0 0; color: var(--news); }
 .refs { margin-top: 36px; border-top: 2px solid var(--ink); padding-top: 14px; }
 .refs h2 { font-family: var(--font-display); font-size: 1.2rem; margin: 0 0 10px; }
 .refs ol { padding-left: 1.4em; margin: 0; font-size: .93rem; display: grid; gap: 8px; overflow-wrap: anywhere; }
@@ -206,6 +206,15 @@ legend { font-family: var(--font-display); font-weight: 700; padding: 0 6px; }
 .form-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
 .error { color: var(--danger); font-size: .9rem; }
 
+/* ---------- One kind of writing ---------- */
+.tag-cat { background: var(--accent-soft); color: var(--accent); }
+.seg.chips { flex-wrap: wrap; border-radius: 18px; max-width: 100%; }
+.card.no-cover .card-body { border-top: 4px solid var(--accent); }
+.card.no-cover p { -webkit-line-clamp: 5; }
+.article.poem .prose { font-size: 1.12rem; line-height: 1.9; }
+.article.poem .prose p { margin-bottom: 1.6em; }
+#drop-pdf { margin-bottom: 4px; }
+
 /* ---------- Inbox ---------- */
 .inbox { display: grid; gap: 16px; }
 .inbox-item { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; display: grid; gap: 10px; min-width: 0; }
@@ -249,11 +258,9 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     </a>
     <nav class="nav" aria-label="Navigasi utama">
       <a href="#" data-nav="beranda">Beranda</a>
-      <a href="#berita" data-nav="berita">Berita</a>
-      <a href="#jurnal" data-nav="jurnal">Jurnal</a>
-      <a href="#kirim-naskah" data-nav="naskah" hidden>Kirim Naskah</a>
+      <a href="#kirim-naskah" data-nav="naskah" hidden>Kirim Tulisan</a>
       <a href="#tinjau" data-nav="tinjau" hidden>Tinjau Naskah</a>
-      <a href="#kirim" class="btn btn-primary btn-sm" data-nav="kirim">+ Unggah Artikel</a>
+      <a href="#kirim" class="btn btn-primary btn-sm" data-nav="kirim">+ Tulis</a>
     </nav>
   </div>
 </header>
@@ -262,7 +269,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
 <footer>
   <div class="wrap">
-    <p id="storage-note">Artikel tersimpan di browser perangkat ini (IndexedDB). Buat cadangan secara berkala, lalu pulihkan di perangkat lain lewat tombol Impor.</p>
+    <p id="storage-note">Tulisan tersimpan di browser perangkat ini (IndexedDB). Buat cadangan secara berkala, lalu pulihkan di perangkat lain lewat tombol Impor.</p>
     <div class="foot-actions">
       <a class="btn btn-sm" id="btn-admin" href="#masuk" hidden>Masuk pengelola</a>
       <button class="btn btn-sm" id="btn-export" type="button">Ekspor cadangan (.json)</button>
@@ -532,7 +539,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   const $ = (s, el = document) => el.querySelector(s);
   const app = $("#app");
   let articles = [];
-  let view = { filter: "semua", query: "" };
+  let view = { filter: "", query: "" };
   let pdfUrl = null, lastArticleJSON = "";
   let inFrame = false; try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
 
@@ -587,14 +594,12 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   const coverSrc = (a) => a.cover || assetUrl(a.coverId) || repoFile(a.coverPath);
   function coverHTML(a) {
     const src = coverSrc(a);
-    const label = a.type === "jurnal" ? (issueLabel(a) || "Artikel Jurnal") : (a.rubrik || "Berita");
-    const fallback = '<div class="cover-fallback ' + esc(a.type) + '">' + esc(label) + "</div>";
+    const fallback = '<div class="cover-fallback">' + esc(a.rubrik || "Tulisan") + "</div>";
     if (src) return '<div class="cover">' + fallback + '<img src="' + esc(src) + '" alt="" loading="lazy" style="position:relative" onerror="this.remove()"></div>';
     return '<div class="cover">' + fallback + "</div>";
   }
   function tags(a) {
-    let t = '<span class="tag tag-' + esc(a.type) + '">' + (a.type === "jurnal" ? "Jurnal" : "Berita") + "</span>";
-    if (a.rubrik) t += ' <span class="meta">' + esc(a.rubrik) + "</span>";
+    let t = '<span class="tag tag-cat">' + esc(a.rubrik || "Tulisan") + "</span>";
     if (a.contoh) t += ' <span class="tag tag-contoh">Contoh</span>';
     return t;
   }
@@ -666,150 +671,255 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   }
 
   function statusBox() {
-    if (mode === "closed") return '<div class="empty">Masuk ke akun claude.ai Anda untuk membaca artikel di Muara Kata.</div>';
-    if (!loaded) return '<div class="empty">' + (loadSlow ? "Artikel belum bisa dimuat. Periksa koneksi internet; halaman akan diperbarui sendiri begitu tersambung." : "Memuat artikel…") + "</div>";
-    if (loadError) return '<div class="empty">Artikel tidak bisa dimuat saat ini. Muat ulang halaman beberapa saat lagi.</div>';
+    if (mode === "closed") return '<div class="empty">Masuk ke akun claude.ai Anda untuk membaca tulisan di Muara Kata.</div>';
+    if (!loaded) return '<div class="empty">' + (loadSlow ? "Tulisan belum bisa dimuat. Periksa koneksi internet; halaman akan diperbarui sendiri begitu tersambung." : "Memuat tulisan…") + "</div>";
+    if (loadError) return '<div class="empty">Tulisan tidak bisa dimuat saat ini. Muat ulang halaman beberapa saat lagi.</div>';
     return "";
   }
 
-  function renderHome(filter) {
-    view.filter = filter || "semua";
-    setNav(filter === "berita" ? "berita" : filter === "jurnal" ? "jurnal" : "beranda");
+  /* ---------- PDF -> web text (PDF.js from cdnjs, loaded only when a PDF is opened) ---------- */
+  const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+  let pdfjsReady = null;
+  function loadPdfJs() {
+    if (pdfjsReady) return pdfjsReady;
+    pdfjsReady = new Promise((resolve, reject) => {
+      const s = document.createElement("script");
+      s.src = PDFJS + "pdf.min.js";
+      s.onload = () => {
+        const lib = window.pdfjsLib;
+        if (!lib) { pdfjsReady = null; return reject({ code: "pdf_lib" }); }
+        try {
+          // A same-origin blob worker that imports the CDN worker works on GitHub Pages and in sandboxed viewers.
+          const boot = new Blob(['importScripts("' + PDFJS + 'pdf.worker.min.js");'], { type: "text/javascript" });
+          lib.GlobalWorkerOptions.workerPort = new Worker(URL.createObjectURL(boot));
+        } catch (e) { lib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; }
+        resolve(lib);
+      };
+      s.onerror = () => { pdfjsReady = null; s.remove(); reject({ code: "pdf_lib" }); };
+      document.head.appendChild(s);
+    });
+    return pdfjsReady;
+  }
+  const median = (arr) => { if (!arr.length) return 0; const a = arr.slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; };
+  // Turns a PDF into this site's writing markup: paragraphs separated by blank lines, "## " headings.
+  async function pdfToText(bytes, opts) {
+    const lib = await loadPdfJs();
+    let doc;
+    try { doc = await lib.getDocument({ data: bytes }).promise; }
+    catch (e) { throw { code: e && e.name === "PasswordException" ? "pdf_locked" : "pdf_bad" }; }
+    const pages = [];
+    for (let i = 1; i <= doc.numPages; i++) {
+      const tc = await (await doc.getPage(i)).getTextContent();
+      const lines = []; let cur = null, lastEnd = null;
+      for (const it of tc.items) {
+        if (typeof it.str !== "string") continue;
+        const x = it.transform[4], y = it.transform[5], h = Math.abs(it.transform[3]) || it.height || 0;
+        if (it.str.trim()) {
+          if (!cur || Math.abs(y - cur.y) > Math.max(2, h * 0.5)) { cur = { y, h, text: "" }; lines.push(cur); lastEnd = null; }
+          if (cur.text && lastEnd !== null && x - lastEnd > h * 0.15 && !/\s$/.test(cur.text) && !/^\s/.test(it.str)) cur.text += " ";
+          cur.text += it.str; cur.h = Math.max(cur.h, h);
+          lastEnd = x + (it.width || 0);
+        } else if (cur && it.str) { cur.text += " "; }
+        if (it.hasEOL) cur = null;
+      }
+      pages.push(lines.map(l => ({ y: l.y, h: l.h, text: l.text.replace(/\s+/g, " ").trim() })).filter(l => l.text));
+    }
+    const all = pages.flat();
+    const chars = all.reduce((n, l) => n + l.text.length, 0);
+    if (chars < 30 * doc.numPages) throw { code: "pdf_scan" };
+
+    // Running headers/footers and page numbers live at the top or bottom edge of a page; body text that
+    // happens to repeat (a refrain, a stock phrase) is left alone.
+    const keyOf = (t) => t.toLowerCase().replace(/\d+/g, "#");
+    const edges = pages.map(ls => { const byY = ls.slice().sort((a, b) => b.y - a.y); return new Set(byY.slice(0, 2).concat(byY.slice(-2))); });
+    const seen = {};
+    pages.forEach((ls, i) => new Set(ls.filter(l => edges[i].has(l)).map(l => keyOf(l.text))).forEach(k => { seen[k] = (seen[k] || 0) + 1; }));
+    const pageNo = (t) => /^[-–\s]*(hal(aman)?\.?\s*)?\d{1,4}[-–\s]*$/i.test(t);
+    const furniture = (l, i) => edges[i].has(l) && l.text.length < 120 &&
+      (pageNo(l.text) || (doc.numPages >= 3 && seen[keyOf(l.text)] >= Math.ceil(doc.numPages * 0.6)));
+
+    const bodyH = median(all.filter(l => l.text.length > 30).map(l => l.h)) || median(all.map(l => l.h)) || 10;
+    const out = []; let para = null;
+    const flush = () => { if (para) out.push(para); para = null; };
+    // Poems keep every line break: when the writer chose a poem category, or the lines are short like verse.
+    const keepLines = !!(opts && opts.keepLines) || (all.length >= 4 && median(all.filter(l => l.h <= bodyH * 1.18).map(l => l.text.length)) < 40);
+    const join = (a, b) => /[A-Za-z]-$/.test(a) && /^[a-z]/.test(b) ? a.slice(0, -1) + b : a + (keepLines ? "\n" : " ") + b;
+    pages.forEach((ls, pi) => {
+      const lines = ls.filter(l => !furniture(l, pi));
+      const gaps = []; for (let k = 1; k < lines.length; k++) { const g = lines[k - 1].y - lines[k].y; if (g > 0 && g < bodyH * 3) gaps.push(g); }
+      const lineGap = median(gaps) || bodyH * 1.2;
+      let prev = null;
+      for (const l of lines) {
+        const heading = l.h > bodyH * 1.18 && l.text.length <= 140;
+        if (heading) {
+          if (para && para.heading && prev && prev.y - l.y > 0 && prev.y - l.y < l.h * 1.8) para.text += " " + l.text;
+          else { flush(); para = { heading: true, text: l.text }; }
+          prev = l; continue;
+        }
+        const gap = prev ? prev.y - l.y : null;
+        const ended = para && /[.!?:"”’)]$/.test(para.text);
+        const fresh = !para || para.heading ||
+          (gap !== null && gap > lineGap * 1.45) ||
+          (gap !== null && gap < -lineGap * 0.5 && ended) ||
+          (prev === null && ended);
+        if (fresh) { flush(); para = { heading: false, text: l.text }; }
+        else para.text = join(para.text, l.text);
+        prev = l;
+      }
+    });
+    flush();
+    // A heading that opens the document is its title: move it to the title field instead of repeating it in the body.
+    let title = "";
+    if (out.length > 1 && out[0].heading && (pages[0] || []).some(l => out[0].text.startsWith(l.text))) title = out.shift().text;
+    else { const big = (pages[0] || []).slice().sort((a, b) => b.h - a.h)[0]; if (big && big.text.length <= 140) title = big.text; }
+    // Escape our own markup at the start of plain paragraphs, then emit.
+    const text = out.map(p => p.heading ? "## " + p.text : p.text.replace(/^(##|>)\s/, "$1 ")).join("\n\n");
+    return { text, title, pages: doc.numPages };
+  }
+  function pdfErrorText(e) {
+    const c = e && e.code;
+    if (c === "pdf_scan") return "PDF ini berupa gambar hasil pindai, jadi teksnya tidak bisa dibaca. Ketik isinya langsung di kolom Isi tulisan.";
+    if (c === "pdf_locked") return "PDF ini dikunci dengan sandi. Buka kuncinya dulu, atau salin teksnya secara manual.";
+    if (c === "pdf_lib") return "Pembaca PDF gagal dimuat. Periksa koneksi internet lalu coba lagi.";
+    return "PDF tidak bisa dibaca. Mungkin berkasnya rusak. Coba PDF lain atau salin teksnya secara manual.";
+  }
+
+  function renderHome() {
+    setNav("beranda");
     const all = sorted(articles);
-    const leadNews = all.find(a => a.type === "berita") || all[0];
-    const journals = all.filter(a => a.type === "jurnal").slice(0, 4);
+    const counts = {};
+    all.forEach(a => { if (a.rubrik) counts[a.rubrik] = (counts[a.rubrik] || 0) + 1; });
+    const cats = Object.keys(counts).sort((x, y) => counts[y] - counts[x] || x.localeCompare(y)).slice(0, 10);
+    if (view.filter && !counts[view.filter]) view.filter = "";
     const today = new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
     let lead = "";
-    if (view.filter === "semua" && !view.query && leadNews) {
+    if (!view.filter && !view.query && all.length) {
+      const top = all[0], more = all.slice(1, 6);
       lead = '<section class="wrap lead" aria-label="Sorotan">' +
-        '<a class="lead-story" href="#artikel-' + esc(leadNews.id) + '">' + coverHTML(leadNews) +
-          '<div class="eyebrow">' + tags(leadNews) + '<span class="meta">' + fmtDate(leadNews.date) + "</span></div>" +
-          "<h2>" + esc(leadNews.title) + "</h2><p>" + esc(leadNews.abstract) + "</p></a>" +
-        '<aside class="issue"><div class="issue-head"><h3>Terbitan Jurnal Terbaru</h3><span class="meta">' + esc(journals[0] ? issueLabel(journals[0]) : "") + "</span></div>" +
-          (journals.length ? journals.map(j =>
-            '<a class="issue-item" href="#artikel-' + esc(j.id) + '"><span class="meta">' + esc(j.pages ? "hlm. " + j.pages : fmtDate(j.date)) + (j.doi ? " · DOI" : "") + "</span><strong>" + esc(j.title) + '</strong><span class="auth">' + esc(authorLine(j)) + "</span></a>").join("")
-            : '<p class="meta">Belum ada artikel jurnal.' + (canWrite ? ' <a href="#kirim">Unggah yang pertama</a>.' : "") + "</p>") +
+        '<a class="lead-story" href="#artikel-' + esc(top.id) + '">' + (coverSrc(top) ? coverHTML(top) : "") +
+          '<div class="eyebrow">' + tags(top) + '<span class="meta">' + fmtDate(top.date) + "</span></div>" +
+          "<h2>" + esc(top.title) + '</h2><span class="meta">Oleh ' + esc(authorLine(top)) + "</span><p>" + esc(excerpt(top, 260)) + "</p></a>" +
+        '<aside class="issue"><div class="issue-head"><h3>Tulisan Terbaru</h3></div>' +
+          (more.length ? more.map(j =>
+            '<a class="issue-item" href="#artikel-' + esc(j.id) + '"><span class="meta">' + esc([j.rubrik, fmtDate(j.date)].filter(Boolean).join(" · ")) + "</span><strong>" + esc(j.title) + '</strong><span class="auth">' + esc(authorLine(j)) + "</span></a>").join("")
+            : '<p class="meta">Tulisan berikutnya akan muncul di sini.</p>') +
         "</aside></section>";
     }
 
     app.innerHTML =
       '<section class="toolbar"><div class="wrap">' +
-        '<div class="seg" role="group" aria-label="Saring jenis">' +
-          ["semua", "berita", "jurnal"].map(f => '<button type="button" data-filter="' + f + '" aria-pressed="' + (view.filter === f) + '">' + f[0].toUpperCase() + f.slice(1) + "</button>").join("") +
-        "</div>" +
-        '<div class="search"><input id="q" type="search" placeholder="Cari judul, penulis, kata kunci…" aria-label="Cari artikel" value="' + esc(view.query) + '"></div>' +
+        (cats.length ? '<div class="seg chips" role="group" aria-label="Saring kategori">' +
+          ['<button type="button" data-cat="" aria-pressed="' + !view.filter + '">Semua</button>']
+            .concat(cats.map(c => '<button type="button" data-cat="' + esc(c) + '" aria-pressed="' + (view.filter === c) + '">' + esc(c) + "</button>")).join("") +
+        "</div>" : "") +
+        '<div class="search"><input id="q" type="search" placeholder="Cari judul, penulis, kategori…" aria-label="Cari tulisan" value="' + esc(view.query) + '"></div>' +
         '<span class="today">' + today + "</span>" +
       "</div></section>" + lead +
       '<section class="wrap"><div class="section-title"><h2 id="feed-title"></h2><span class="meta" id="feed-count"></span></div><div class="feed" id="feed"></div></section>';
 
     $("#q").addEventListener("input", (e) => { view.query = e.target.value; renderFeed(); });
-    document.querySelectorAll("[data-filter]").forEach(b => b.addEventListener("click", () => {
-      const f = b.dataset.filter;
-      if (f === "semua") { history.replaceState(null, "", location.pathname + location.search); renderHome("semua"); }
-      else location.hash = f;
-    }));
+    document.querySelectorAll("[data-cat]").forEach(b => b.addEventListener("click", () => { view.filter = b.dataset.cat; renderHome(); }));
     renderFeed();
   }
 
   function renderFeed() {
     const feed = $("#feed"); if (!feed) return;
     const q = view.query.trim().toLowerCase();
-    let list = sorted(articles).filter(a => view.filter === "semua" || a.type === view.filter);
+    let list = sorted(articles).filter(a => !view.filter || a.rubrik === view.filter);
     if (q) list = list.filter(a => [a.title, a.authors, a.keywords, a.abstract, a.rubrik, a.body].join(" ").toLowerCase().includes(q));
-    const titles = { semua: "Semua Artikel", berita: "Berita", jurnal: "Artikel Jurnal" };
-    $("#feed-title").textContent = q ? 'Hasil pencarian "' + view.query.trim() + '"' : titles[view.filter];
-    $("#feed-count").textContent = list.length + " artikel";
+    $("#feed-title").textContent = q ? 'Hasil pencarian "' + view.query.trim() + '"' : view.filter || "Semua Tulisan";
+    $("#feed-count").textContent = list.length + " tulisan";
     const status = statusBox();
     if (status && !list.length) { feed.innerHTML = status; return; }
     feed.innerHTML = list.length ? list.map(cardHTML).join("") :
-      '<div class="empty">' + (q ? "Tidak ada artikel yang cocok. Coba kata kunci lain." :
-        "Belum ada artikel di sini." + (canWrite ? ' <a href="#kirim">Unggah artikel pertama</a>.' : " Kembali lagi nanti.")) + "</div>";
+      '<div class="empty">' + (q ? "Tidak ada tulisan yang cocok. Coba kata kunci lain." :
+        "Belum ada tulisan." + (canWrite ? ' <a href="#kirim">Tulis yang pertama</a>.' : submitUrl && mode === "github" ? ' <a href="#kirim-naskah">Kirim tulisanmu</a>.' : " Kembali lagi nanti.")) + "</div>";
+  }
+
+  function excerpt(a, n) {
+    const src = a.abstract || String(a.body || "").replace(/^##\s.*$/gm, "").replace(/^>\s/gm, "");
+    const t = src.replace(/\*\*?/g, "").replace(/\s+/g, " ").trim();
+    return t.length > n ? t.slice(0, n).replace(/\s+\S*$/, "") + "…" : t;
   }
 
   function cardHTML(a) {
-    const hasPdf = a.pdf || a.pdfId || a.pdfPath;
-    if (a.type === "jurnal") {
-      return '<a class="card jurnal" href="#artikel-' + esc(a.id) + '"><div class="card-body">' +
+    const cover = coverSrc(a);
+    return '<a class="card' + (cover ? "" : " no-cover") + '" href="#artikel-' + esc(a.id) + '">' + (cover ? coverHTML(a) : "") +
+      '<div class="card-body">' +
         '<div class="row">' + tags(a) + "</div>" +
         "<h3>" + esc(a.title) + "</h3>" +
         '<span class="meta">' + esc(authorLine(a)) + "</span>" +
-        (a.abstract ? '<span class="abs-label">Abstrak</span><p>' + esc(a.abstract) + "</p>" : "") +
-        '<div class="card-foot meta">' + esc(issueLabel(a) || fmtDate(a.date)) + (hasPdf ? " · PDF" : "") + (a.doi ? " · doi:" + esc(a.doi) : "") + "</div>" +
-        "</div></a>";
-    }
-    return '<a class="card berita" href="#artikel-' + esc(a.id) + '">' + coverHTML(a) + '<div class="card-body">' +
-      '<div class="row">' + tags(a) + "</div>" +
-      "<h3>" + esc(a.title) + "</h3>" +
-      (a.abstract ? "<p>" + esc(a.abstract) + "</p>" : "") +
-      '<div class="card-foot meta">' + fmtDate(a.date) + " · " + readTime(a) + "</div>" +
+        "<p>" + esc(excerpt(a, 220)) + "</p>" +
+        '<div class="card-foot meta">' + fmtDate(a.date) + " · " + readTime(a) + "</div>" +
       "</div></a>";
   }
+
+  const isPoem = (a) => /puisi|sajak|syair|pantun|poem/i.test(a.rubrik || "");
 
   function renderArticle(id) {
     const a = articles.find(x => x.id === id);
     if (!a) {
       lastArticleJSON = "";
       const status = statusBox();
-      app.innerHTML = '<div class="wrap" style="padding-block:48px">' + (status || '<div class="empty">Artikel tidak ditemukan. <a href="#">Kembali ke beranda</a></div>') + "</div>";
+      app.innerHTML = '<div class="wrap" style="padding-block:48px">' + (status || '<div class="empty">Tulisan tidak ditemukan. <a href="#">Kembali ke beranda</a></div>') + "</div>";
       return;
     }
     lastArticleJSON = JSON.stringify(a);
-    setNav(a.type);
-    if (pdfUrl && pdfUrl.startsWith("blob:")) URL.revokeObjectURL(pdfUrl);
-    pdfUrl = null;
-    if (a.pdf) { try { pdfUrl = URL.createObjectURL(dataUrlToBlob(a.pdf)); } catch (e) { pdfUrl = null; } }
-    else if (a.pdfId) pdfUrl = assetUrl(a.pdfId);
-    else if (repoFile(a.pdfPath)) pdfUrl = repoFile(a.pdfPath);
-    const pdfName = a.pdfName || "artikel.pdf";
-    const isJ = a.type === "jurnal";
+    setNav("beranda");
     const refList = String(a.references || "").split("\n").map(x => x.trim()).filter(Boolean);
+    const legacyPdf = !String(a.body || "").trim() && (a.pdf || a.pdfId || a.pdfPath);
+    const hasInfo = a.volume || a.issue || a.pages || a.doi;
 
     app.innerHTML =
-      '<article class="wrap article ' + esc(a.type) + '"><div class="article-main">' +
-        '<a class="back" href="#' + (isJ ? "jurnal" : "berita") + '">← Kembali ke ' + (isJ ? "Jurnal" : "Berita") + "</a>" +
-        '<div class="eyebrow">' + tags(a) + (isJ && issueLabel(a) ? '<span class="meta">' + esc(issueLabel(a)) + "</span>" : "") + "</div>" +
+      '<article class="wrap article' + (isPoem(a) ? " poem" : "") + '"><div class="article-main">' +
+        '<a class="back" href="#">← Semua tulisan</a>' +
+        '<div class="eyebrow">' + tags(a) + "</div>" +
         "<h1>" + esc(a.title) + "</h1>" +
-        '<div class="byline">' + (isJ ? "" : "Oleh ") + "<strong>" + esc(authorLine(a)) + "</strong></div>" +
+        '<div class="byline">Oleh <strong>' + esc(authorLine(a)) + "</strong></div>" +
         (a.affiliation ? '<div class="affil">' + esc(a.affiliation) + "</div>" : "") +
-        '<div class="meta">' + (isJ ? "Terbit " : "") + fmtDate(a.date) + " · " + readTime(a) + "</div>" +
-        (!isJ ? '<figure class="article-cover" style="margin-inline:0">' + coverHTML(a) + "</figure>" : "") +
-        (isJ && a.abstract ? '<section class="abstract"><h2>Abstrak</h2><p>' + esc(a.abstract) + "</p>" +
+        '<div class="meta">' + fmtDate(a.date) + " · " + readTime(a) + "</div>" +
+        (coverSrc(a) ? '<figure class="article-cover" style="margin-inline:0">' + coverHTML(a) + "</figure>" : "") +
+        (a.abstract ? '<section class="abstract"><h2>Ringkasan</h2><p>' + esc(a.abstract) + "</p>" +
           (a.keywords ? '<div class="kw"><span class="meta" style="border:0;padding:0;color:var(--muted)">Kata kunci:</span>' + splitList(a.keywords).map(k => "<span>" + esc(k) + "</span>").join("") + "</div>" : "") +
         "</section>" : "") +
-        (!isJ && a.abstract ? '<p style="font-size:1.15rem;color:var(--muted);margin:0 0 1.2em">' + esc(a.abstract) + "</p>" : "") +
-        '<div class="prose">' + renderBody(a.body) + "</div>" +
-        (pdfUrl ? '<div id="pdf-slot"></div>' : "") +
+        '<div class="prose" id="prose">' + (legacyPdf ? '<p class="meta">Menyiapkan isi tulisan…</p>' : renderBody(a.body)) + "</div>" +
         (refList.length ? '<section class="refs"><h2>Daftar Pustaka</h2><ol>' + refList.map(r => "<li>" + esc(r) + "</li>").join("") + "</ol></section>" : "") +
       "</div>" +
       '<aside class="rail">' +
-        (pdfUrl ? '<div class="panel"><h3>Naskah lengkap</h3>' +
-          '<button class="btn btn-primary" type="button" id="btn-view-pdf">Tampilkan PDF di halaman</button>' +
-          (canSaveFiles() ? '<button class="btn" type="button" id="btn-dl-pdf">Unduh PDF</button>' : "") +
-          '<span class="meta">' + esc(a.pdfName || "") + "</span></div>" : "") +
-        (isJ ? '<div class="panel"><h3>Informasi artikel</h3><dl>' +
+        '<div class="panel"><h3>Kutip tulisan ini (APA)</h3><div class="cite-box" id="cite">' + esc(citation(a)) + '</div><button class="btn btn-sm" type="button" id="btn-cite">Salin kutipan</button></div>' +
+        (hasInfo ? '<div class="panel"><h3>Informasi terbitan</h3><dl>' +
           (a.volume ? "<dt>Volume</dt><dd>" + esc(a.volume) + "</dd>" : "") +
           (a.issue ? "<dt>Nomor</dt><dd>" + esc(a.issue) + "</dd>" : "") +
           (a.pages ? "<dt>Halaman</dt><dd>" + esc(a.pages) + "</dd>" : "") +
           (a.doi ? '<dt>DOI</dt><dd><a href="https://doi.org/' + esc(a.doi) + '" target="_blank" rel="noopener">' + esc(a.doi) + "</a></dd>" : "") +
-          (a.rubrik ? "<dt>Bidang</dt><dd>" + esc(a.rubrik) + "</dd>" : "") +
-          "<dt>Terbit</dt><dd>" + fmtDate(a.date) + "</dd></dl></div>" +
-          '<div class="panel"><h3>Cara mengutip (APA)</h3><div class="cite-box" id="cite">' + esc(citation(a)) + '</div><button class="btn btn-sm" type="button" id="btn-cite">Salin kutipan</button></div>'
-          : "") +
+          "</dl></div>" : "") +
         (canWrite ? '<div class="panel"><h3>Kelola</h3>' +
-          '<a class="btn btn-sm" href="#ubah-' + esc(a.id) + '">Ubah artikel</a>' +
-          '<button class="btn btn-sm btn-danger" type="button" id="btn-del">Hapus artikel</button>' +
+          '<a class="btn btn-sm" href="#ubah-' + esc(a.id) + '">Ubah tulisan</a>' +
+          '<button class="btn btn-sm btn-danger" type="button" id="btn-del">Hapus tulisan</button>' +
           '<div id="del-confirm" hidden style="display:grid;gap:8px">' +
-            '<span style="font-size:.88rem">Hapus artikel ini untuk semua pengunjung? Tindakan ini tidak bisa dibatalkan.</span>' +
+            '<span style="font-size:.88rem">Hapus tulisan ini untuk semua pengunjung? Tindakan ini tidak bisa dibatalkan.</span>' +
             '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-sm btn-danger armed" type="button" id="btn-del-yes">Ya, hapus</button>' +
             '<button class="btn btn-sm" type="button" id="btn-del-no">Batal</button></div>' +
           "</div>" +
           '<p class="error" id="del-error" hidden style="margin:0"></p>' +
         "</div>" : "") +
         (!canWrite && mode === "github" ? '<div class="panel"><h3>Kelola</h3>' +
-          '<span style="font-size:.88rem">Untuk mengubah atau menghapus artikel ini, masuk dulu sebagai pengelola.</span>' +
+          '<span style="font-size:.88rem">Untuk mengubah atau menghapus tulisan ini, masuk dulu sebagai pengelola.</span>' +
           '<a class="btn btn-sm" href="#masuk">Masuk pengelola</a></div>' : "") +
       "</aside></article>";
+
+    // Older entries stored only a PDF: show its text as a web page.
+    if (legacyPdf) (async () => {
+      const prose = $("#prose");
+      try {
+        let bytes;
+        if (a.pdf) bytes = new Uint8Array(await dataUrlToBlob(a.pdf).arrayBuffer());
+        else bytes = new Uint8Array(await (await fetch(a.pdfId ? assetUrl(a.pdfId) : repoFile(a.pdfPath))).arrayBuffer());
+        const r = await pdfToText(bytes);
+        if (prose.isConnected) prose.innerHTML = renderBody(r.text);
+      } catch (e) { if (prose.isConnected) prose.innerHTML = '<p class="meta">Isi tulisan ini belum bisa ditampilkan. ' + esc(pdfErrorText(e)) + "</p>"; }
+    })();
 
     const del = $("#btn-del");
     if (del) {
@@ -823,147 +933,126 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
           articles = articles.filter(x => x.id !== a.id);
           if (mode === "shared") { await dropAsset(a.coverId); await dropAsset(a.pdfId); }
           if (mode === "github") { await ghDeleteFile(a.coverPath); await ghDeleteFile(a.pdfPath); }
-          toast(mode === "github" ? "Artikel dihapus. Pengunjung melihat perubahannya dalam 1–2 menit." : "Artikel dihapus");
-          location.hash = isJ ? "jurnal" : "berita";
+          toast(mode === "github" ? "Tulisan dihapus. Pengunjung melihat perubahannya dalam 1–2 menit." : "Tulisan dihapus");
+          location.hash = "";
         } catch (e) {
           yes.disabled = false; no.disabled = false; yes.textContent = "Ya, hapus";
           const code = e && e.code;
           derr.textContent =
-            code === "invalid_argument" ? "Akun Anda tidak punya izin menghapus artikel di halaman ini." :
+            code === "invalid_argument" ? "Akun Anda tidak punya izin menghapus tulisan di halaman ini." :
             code && code.startsWith("gh_") ? ghErrorText(e) :
-            "Artikel gagal dihapus. Periksa koneksi internet lalu coba lagi.";
+            "Tulisan gagal dihapus. Periksa koneksi internet lalu coba lagi.";
           derr.hidden = false;
         }
       });
     }
     const c = $("#btn-cite"); if (c) c.addEventListener("click", () => copyText(citation(a), $("#cite")));
-    const v = $("#btn-view-pdf");
-    if (v) v.addEventListener("click", () => {
-      const slot = $("#pdf-slot");
-      if (slot.firstChild) { slot.innerHTML = ""; v.textContent = "Tampilkan PDF di halaman"; return; }
-      slot.innerHTML = '<iframe class="pdf-frame" title="Naskah PDF" src="' + esc(pdfUrl) + '"></iframe>';
-      v.textContent = "Sembunyikan PDF"; slot.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    const d = $("#btn-dl-pdf");
-    if (d) d.addEventListener("click", async () => {
-      try {
-        const blob = a.pdf ? dataUrlToBlob(a.pdf) : await (await fetch(pdfUrl)).blob();
-        await saveFile(pdfName, blob);
-      } catch (e) { toast("PDF tidak dapat diunduh saat ini"); }
-    });
   }
+
+  const DEFAULT_CATS = ["Cerpen", "Puisi", "Esai", "Opini", "Ide & Gagasan", "Catatan Perjalanan", "Artikel Ilmiah", "Berita"];
 
   function renderForm(editId, opts) {
     const sub = !!(opts && opts.submission);
-    if (sub && (mode !== "github" || !submitUrl)) { toast("Pengiriman naskah belum dibuka"); location.hash = ""; return; }
-    if (!sub && !canWrite) { toast("Hanya pengelola yang dapat mengunggah artikel"); location.hash = ""; return; }
+    if (sub && (mode !== "github" || !submitUrl)) { toast("Pengiriman tulisan belum dibuka"); location.hash = ""; return; }
+    if (!sub && !canWrite) { toast("Hanya pengelola yang dapat menerbitkan tulisan"); location.hash = ""; return; }
     setNav(sub ? "naskah" : "kirim");
-    const maxMb = sub ? 10 : 20;
     const a = editId ? articles.find(x => x.id === editId) : null;
     if (editId && !a) {
-      app.innerHTML = '<div class="wrap" style="padding-block:48px">' + (statusBox() || '<div class="empty">Artikel tidak ditemukan. <a href="#">Kembali ke beranda</a></div>') + "</div>";
+      app.innerHTML = '<div class="wrap" style="padding-block:48px">' + (statusBox() || '<div class="empty">Tulisan tidak ditemukan. <a href="#">Kembali ke beranda</a></div>') + "</div>";
       return;
     }
-    const d = a || { type: "berita", date: new Date().toISOString().slice(0, 10) };
-    const draft = {
-      cover: d.cover || "", coverId: d.coverId || "", coverBlob: null,
-      pdf: d.pdf || "", pdfId: d.pdfId || "", pdfBlob: null, pdfName: d.pdfName || "",
-      coverPath: d.coverPath || "", pdfPath: d.pdfPath || ""
-    };
+    const d = a || { date: new Date().toISOString().slice(0, 10) };
+    const draft = { cover: d.cover || "", coverId: d.coverId || "", coverPath: d.coverPath || "", coverBlob: null };
     const v = (k) => esc(d[k] || "");
     const previewSrc = draft.cover || assetUrl(draft.coverId) || repoFile(draft.coverPath);
-    const hasPdf = draft.pdf || draft.pdfId || draft.pdfPath;
+    const cats = [...new Set(DEFAULT_CATS.concat(articles.map(x => x.rubrik).filter(Boolean)))];
+    const extrasOpen = d.affiliation || d.keywords || d.references;
 
     app.innerHTML =
       '<div class="wrap"><div class="form-page">' +
-      "<h1>" + (sub ? "Kirim naskah" : a ? "Ubah artikel" : "Unggah artikel") + "</h1>" +
-      (sub ? "<p>Kirim berita atau artikel jurnal Anda ke redaksi Muara Kata. Setiap naskah ditinjau dulu dan baru tampil di website setelah diterima. Kami menghubungi Anda lewat email.</p>" :
-      "<p>Pilih jenis tulisan. Berita cocok untuk liputan dan opini; Jurnal untuk naskah ilmiah lengkap dengan abstrak, DOI, dan berkas PDF." +
-        (mode === "shared" ? " Artikel yang diterbitkan langsung terlihat oleh semua pengunjung." : "") +
-        (mode === "github" ? " Artikel disimpan ke repositori GitHub dan terlihat oleh semua pengunjung sekitar 1–2 menit setelah terbit." : "") + "</p>") +
+      "<h1>" + (sub ? "Kirim tulisan" : a ? "Ubah tulisan" : "Tulis") + "</h1>" +
+      "<p>" + (sub
+        ? "Kirim cerita, puisi, esai, ide, atau tulisan ilmiah Anda ke redaksi Muara Kata. Setiap tulisan ditinjau dulu dan baru tampil setelah diterima. Kami menghubungi Anda lewat email."
+        : "Cerita, puisi, esai, ide, atau tulisan ilmiah, semuanya di satu tempat." +
+          (mode === "github" ? " Tulisan disimpan ke repositori GitHub dan terlihat oleh semua pengunjung sekitar 1–2 menit setelah terbit." : "") +
+          (mode === "shared" ? " Tulisan yang diterbitkan langsung terlihat oleh semua pengunjung." : "")) + "</p>" +
       '<form class="submit" id="f" novalidate>' +
-        '<div class="type-pick" role="radiogroup" aria-label="Jenis artikel">' +
-          '<label class="berita"><input type="radio" name="type" id="type-berita" value="berita"' + (d.type === "berita" ? " checked" : "") + '><strong>Berita</strong><span>Liputan, opini, kabar kampus</span></label>' +
-          '<label class="jurnal"><input type="radio" name="type" id="type-jurnal" value="jurnal"' + (d.type === "jurnal" ? " checked" : "") + '><strong>Jurnal</strong><span>Artikel penelitian dengan abstrak &amp; PDF</span></label>' +
-        "</div>" +
         "<fieldset><legend>Identitas tulisan</legend>" +
           '<div class="field"><label for="title">Judul *</label><input type="text" id="title" name="title" required value="' + v("title") + '"></div>' +
           '<div class="grid-2">' +
             '<div class="field"><label for="authors">Penulis *</label><input type="text" id="authors" name="authors" required value="' + v("authors") + '"><span class="hint">Pisahkan beberapa penulis dengan titik koma (;)</span></div>' +
-            '<div class="field"><label for="rubrik">Rubrik / bidang ilmu</label><input type="text" id="rubrik" name="rubrik" list="rubrik-list" value="' + v("rubrik") + '"><datalist id="rubrik-list">' +
-              [...new Set(articles.map(x => x.rubrik).filter(Boolean))].map(r => '<option value="' + esc(r) + '">').join("") + "</datalist></div>" +
+            '<div class="field"><label for="rubrik">Kategori</label><input type="text" id="rubrik" name="rubrik" list="rubrik-list" placeholder="mis. Cerpen, Puisi, Esai" value="' + v("rubrik") + '"><datalist id="rubrik-list">' +
+              cats.map(r => '<option value="' + esc(r) + '">').join("") + "</datalist></div>" +
           "</div>" +
-          '<div class="grid-2">' +
-            (sub ? "" : '<div class="field"><label for="date">Tanggal terbit</label><input type="date" id="date" name="date" value="' + v("date") + '"></div>') +
-            '<div class="field j-only"><label for="affiliation">Afiliasi</label><input type="text" id="affiliation" name="affiliation" value="' + v("affiliation") + '"></div>' +
-          "</div>" +
-        "</fieldset>" +
-        '<fieldset class="j-only"><legend>' + (sub ? "Data artikel jurnal" : "Data terbitan jurnal") + '</legend>' +
-          (sub ? "" : '<div class="grid-3">' +
-            '<div class="field"><label for="volume">Volume</label><input type="text" id="volume" name="volume" value="' + v("volume") + '"></div>' +
-            '<div class="field"><label for="issue">Nomor</label><input type="text" id="issue" name="issue" value="' + v("issue") + '"></div>' +
-            '<div class="field"><label for="pages">Halaman</label><input type="text" id="pages" name="pages" placeholder="mis. 101–118" value="' + v("pages") + '"></div>' +
-          "</div>" +
-          '<div class="field"><label for="doi">DOI</label><input type="text" id="doi" name="doi" placeholder="10.xxxx/xxxxx" value="' + v("doi") + '"></div>') +
-          '<div class="field"><label for="keywords">Kata kunci</label><input type="text" id="keywords" name="keywords" placeholder="kata kunci 1; kata kunci 2" value="' + v("keywords") + '"></div>' +
+          (sub ? "" : '<div class="grid-2"><div class="field"><label for="date">Tanggal terbit</label><input type="date" id="date" name="date" value="' + v("date") + '"></div></div>') +
         "</fieldset>" +
         "<fieldset><legend>Isi</legend>" +
-          '<div class="field"><label for="abstract" id="abstract-label">Ringkasan / lead</label><textarea id="abstract" name="abstract">' + v("abstract") + "</textarea></div>" +
-          '<div class="field"><label for="body">Isi artikel</label><textarea class="big" id="body" name="body">' + v("body") + '</textarea><span class="hint">Pisahkan paragraf dengan baris kosong. "## Judul" = subjudul, "&gt; teks" = kutipan, **tebal**, *miring*.</span></div>' +
-          '<div class="field j-only"><label for="references">Daftar pustaka</label><textarea id="references" name="references">' + v("references") + '</textarea><span class="hint">Satu rujukan per baris</span></div>' +
+          '<div class="drop" id="drop-pdf"><label for="pdf">Punya tulisan dalam PDF? Ambil isinya otomatis</label>' +
+            '<input type="file" id="pdf" accept="application/pdf,.pdf">' +
+            '<span class="meta" id="pdf-status">Teks dari PDF dimasukkan ke kolom Isi tulisan di bawah, lalu tampil sebagai halaman web, bukan sebagai berkas PDF. Anda bisa merapikannya dulu. Untuk puisi, isi kategori "Puisi" lebih dulu supaya setiap baris tetap terjaga.</span>' +
+            '<button type="button" class="btn btn-sm" id="pdf-undo" hidden>Kembalikan isi sebelumnya</button></div>' +
+          '<div class="field"><label for="body">Isi tulisan *</label><textarea class="big" id="body" name="body">' + v("body") + '</textarea><span class="hint">Pisahkan paragraf dengan baris kosong. "## Judul" = subjudul, "&gt; teks" = kutipan, **tebal**, *miring*. Untuk puisi, setiap baris tetap seperti yang Anda ketik.</span></div>' +
+          '<div class="field"><label for="abstract">Ringkasan</label><textarea id="abstract" name="abstract" style="min-height:80px">' + v("abstract") + '</textarea><span class="hint">Opsional. Satu-dua kalimat yang tampil di daftar tulisan</span></div>' +
+          "<details" + (extrasOpen ? " open" : "") + '><summary style="cursor:pointer;font-family:var(--font-display);font-weight:500">Bagian tambahan untuk tulisan ilmiah (opsional)</summary><div style="display:grid;gap:16px;margin-top:14px">' +
+            '<div class="field"><label for="affiliation">Asal / afiliasi penulis</label><input type="text" id="affiliation" name="affiliation" value="' + v("affiliation") + '"></div>' +
+            '<div class="field"><label for="keywords">Kata kunci</label><input type="text" id="keywords" name="keywords" placeholder="kata kunci 1; kata kunci 2" value="' + v("keywords") + '"></div>' +
+            '<div class="field"><label for="references">Daftar pustaka</label><textarea id="references" name="references">' + v("references") + '</textarea><span class="hint">Satu rujukan per baris</span></div>' +
+          "</div></details>" +
         "</fieldset>" +
-        "<fieldset><legend>Berkas</legend>" +
-          '<div class="grid-2">' +
-            '<div class="drop" id="drop-cover"><label for="cover">Gambar sampul (JPG/PNG)</label><input type="file" id="cover" accept="image/*"><img class="preview" id="cover-preview" alt="Pratinjau sampul"' + (previewSrc ? ' src="' + esc(previewSrc) + '"' : " hidden") + '><button type="button" class="btn btn-sm" id="cover-clear"' + (previewSrc ? "" : " hidden") + ">Hapus gambar</button></div>" +
-            '<div class="drop" id="drop-pdf"><label for="pdf">Naskah PDF (maks. ' + maxMb + ' MB)</label><input type="file" id="pdf" accept="application/pdf,.pdf"><span class="meta" id="pdf-name">' + esc(draft.pdfName || "Belum ada berkas") + '</span><button type="button" class="btn btn-sm" id="pdf-clear"' + (hasPdf ? "" : " hidden") + ">Hapus PDF</button></div>" +
-          "</div>" +
+        "<fieldset><legend>Gambar sampul</legend>" +
+          '<div class="drop" id="drop-cover"><label for="cover">Gambar sampul (opsional, JPG/PNG)</label><input type="file" id="cover" accept="image/*"><img class="preview" id="cover-preview" alt="Pratinjau sampul"' + (previewSrc ? ' src="' + esc(previewSrc) + '"' : " hidden") + '><button type="button" class="btn btn-sm" id="cover-clear"' + (previewSrc ? "" : " hidden") + ">Hapus gambar</button></div>" +
         "</fieldset>" +
         (sub ? "<fieldset><legend>Kontak pengirim</legend>" +
           '<div class="grid-2">' +
             '<div class="field"><label for="sender">Nama pengirim</label><input type="text" id="sender" name="sender" autocomplete="name"></div>' +
             '<div class="field"><label for="email">Email *</label><input type="email" id="email" name="email" required autocomplete="email"><span class="hint">Tidak ditampilkan di website</span></div>' +
           "</div>" +
-          '<label style="display:flex;gap:10px;align-items:flex-start;font-size:.95rem"><input type="checkbox" id="agree" name="agree" style="margin-top:5px"> <span>Saya menyatakan naskah ini karya asli, belum pernah diterbitkan di tempat lain, dan saya berhak mengirimkannya untuk diterbitkan.</span></label>' +
+          '<label style="display:flex;gap:10px;align-items:flex-start;font-size:.95rem"><input type="checkbox" id="agree" name="agree" style="margin-top:5px"> <span>Saya menyatakan tulisan ini karya asli, belum pernah diterbitkan di tempat lain, dan saya berhak mengirimkannya untuk diterbitkan.</span></label>' +
           '<div class="trap" aria-hidden="true"><label for="website">Website</label><input type="text" id="website" name="website" tabindex="-1" autocomplete="off"></div>' +
         "</fieldset>" : "") +
         '<p class="error" id="form-error" hidden></p>' +
-        '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-submit">' + (sub ? "Kirim naskah" : a ? "Simpan perubahan" : "Terbitkan") + '</button><a class="btn" href="' + (a ? "#artikel-" + esc(a.id) : "#") + '">Batal</a></div>' +
+        '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-submit">' + (sub ? "Kirim tulisan" : a ? "Simpan perubahan" : "Terbitkan") + '</button><a class="btn" href="' + (a ? "#artikel-" + esc(a.id) : "#") + '">Batal</a></div>' +
       "</form></div></div>";
 
     const form = $("#f");
-    function syncType() {
-      const isJ = form.type.value === "jurnal";
-      document.querySelectorAll(".j-only").forEach(el => { el.hidden = !isJ; });
-      $("#abstract-label").textContent = isJ ? "Abstrak" : "Ringkasan / lead";
-    }
-    form.querySelectorAll('input[name="type"]').forEach(r => r.addEventListener("change", syncType));
-    syncType();
 
+    // ---- PDF -> text ----
+    let beforePdf = null;
+    async function takePdf(file) {
+      if (!file) return;
+      const status = $("#pdf-status"), undo = $("#pdf-undo");
+      if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { status.textContent = "Berkas harus berformat PDF."; return; }
+      if (file.size > 40 * 1024 * 1024) { status.textContent = "PDF terlalu besar (maks. 40 MB)."; return; }
+      status.textContent = "Membaca " + file.name + "…";
+      try {
+        const r = await pdfToText(new Uint8Array(await file.arrayBuffer()), { keepLines: isPoem({ rubrik: form.rubrik.value }) });
+        beforePdf = { body: form.body.value, title: form.title.value };
+        form.body.value = r.text;
+        if (!form.title.value.trim() && r.title) form.title.value = r.title;
+        status.textContent = "Selesai: " + r.pages + " halaman dibaca dari " + file.name + ". Periksa dan rapikan isinya di bawah sebelum " + (sub ? "mengirim" : "menerbitkan") + ".";
+        undo.hidden = false;
+        if (sub && r.text.length > 190000) status.textContent += " Tulisan ini sangat panjang; bagian setelah 190.000 karakter bisa terpotong.";
+      } catch (e) { status.textContent = pdfErrorText(e); }
+      $("#pdf").value = "";
+    }
+    $("#pdf").addEventListener("change", e => takePdf(e.target.files[0]));
+    $("#pdf-undo").addEventListener("click", () => {
+      if (!beforePdf) return;
+      form.body.value = beforePdf.body; form.title.value = beforePdf.title; beforePdf = null;
+      $("#pdf-undo").hidden = true; $("#pdf-status").textContent = "Isi sebelumnya dikembalikan.";
+    });
+
+    // ---- cover ----
     async function setCover(file) {
       if (!file || !file.type.startsWith("image/")) return;
       const p = $("#cover-preview");
-      if (remoteFiles()) {
-        draft.coverBlob = await resizeToBlob(file); draft.cover = "";
-        p.src = URL.createObjectURL(draft.coverBlob);
-      } else {
-        draft.cover = await resizeToDataUrl(file); p.src = draft.cover;
-      }
+      if (remoteFiles()) { draft.coverBlob = await resizeToBlob(file); draft.cover = ""; p.src = URL.createObjectURL(draft.coverBlob); }
+      else { draft.cover = await resizeToDataUrl(file); p.src = draft.cover; }
       p.hidden = false; $("#cover-clear").hidden = false;
     }
-    async function setPdf(file) {
-      if (!file) return;
-      if (!/pdf$/i.test(file.type) && !/\.pdf$/i.test(file.name)) { toast("Berkas harus berformat PDF"); return; }
-      if (file.size > maxMb * 1024 * 1024) { toast("PDF terlalu besar (maks. " + maxMb + " MB)"); return; }
-      if (remoteFiles()) { draft.pdfBlob = file; draft.pdf = ""; }
-      else draft.pdf = await readFile(file);
-      draft.pdfName = file.name;
-      $("#pdf-name").textContent = file.name + " · " + (file.size / 1024 / 1024).toFixed(1) + " MB"; $("#pdf-clear").hidden = false;
-    }
     $("#cover").addEventListener("change", e => setCover(e.target.files[0]));
-    $("#pdf").addEventListener("change", e => setPdf(e.target.files[0]));
     $("#cover-clear").addEventListener("click", () => { draft.cover = ""; draft.coverId = ""; draft.coverPath = ""; draft.coverBlob = null; $("#cover-preview").hidden = true; $("#cover-clear").hidden = true; $("#cover").value = ""; });
-    $("#pdf-clear").addEventListener("click", () => { draft.pdf = ""; draft.pdfId = ""; draft.pdfPath = ""; draft.pdfBlob = null; draft.pdfName = ""; $("#pdf-name").textContent = "Belum ada berkas"; $("#pdf-clear").hidden = true; $("#pdf").value = ""; });
-    [["#drop-cover", setCover], ["#drop-pdf", setPdf]].forEach(([sel, fn]) => {
+    [["#drop-cover", setCover], ["#drop-pdf", takePdf]].forEach(([sel, fn]) => {
       const z = $(sel);
       z.addEventListener("dragover", e => { e.preventDefault(); z.classList.add("over"); });
       z.addEventListener("dragleave", () => z.classList.remove("over"));
@@ -974,32 +1063,29 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       const btn = $("#btn-submit");
       btn.disabled = true; btn.textContent = "Mengirim…";
       try {
-        const type = get("type") === "jurnal" ? "jurnal" : "berita";
-        const isJ = type === "jurnal";
         await inbox({
           action: "submit", website: get("website"), name: get("sender"), email: get("email"),
           article: {
-            type, title: get("title"), authors: get("authors"), rubrik: get("rubrik"),
-            affiliation: isJ ? get("affiliation") : "", abstract: get("abstract"), body: get("body"),
-            references: isJ ? get("references") : "", keywords: isJ ? get("keywords") : ""
+            type: "tulisan", title: get("title"), authors: get("authors"), rubrik: get("rubrik"),
+            affiliation: get("affiliation"), abstract: get("abstract"), body: get("body"),
+            references: get("references"), keywords: get("keywords")
           },
-          pdfName: draft.pdfBlob ? draft.pdfName : "",
-          pdf: draft.pdfBlob ? await blobToB64(draft.pdfBlob) : "",
+          pdfName: "", pdf: "",
           cover: draft.coverBlob ? await blobToB64(draft.coverBlob) : ""
         });
-        app.innerHTML = '<div class="wrap"><div class="form-page"><h1>Naskah terkirim</h1>' +
-          "<p>Terima kasih. Redaksi akan meninjau naskah <strong>" + esc(get("title")) + "</strong> dan menghubungi Anda di <strong>" + esc(get("email")) + "</strong>. Naskah tampil di website setelah diterima.</p>" +
-          '<div class="form-actions"><a class="btn btn-primary" href="#">Kembali ke beranda</a><a class="btn" href="#kirim-naskah">Kirim naskah lain</a></div></div></div>';
-        // Leave #kirim-naskah so the menu link and "Kirim naskah lain" open a fresh form.
+        app.innerHTML = '<div class="wrap"><div class="form-page"><h1>Tulisan terkirim</h1>' +
+          "<p>Terima kasih. Redaksi akan meninjau <strong>" + esc(get("title")) + "</strong> dan menghubungi Anda di <strong>" + esc(get("email")) + "</strong>. Tulisan tampil di website setelah diterima.</p>" +
+          '<div class="form-actions"><a class="btn btn-primary" href="#">Kembali ke beranda</a><a class="btn" href="#kirim-naskah">Kirim tulisan lain</a></div></div></div>';
+        // Leave #kirim-naskah so the menu link and "Kirim tulisan lain" open a fresh form.
         history.replaceState(null, "", location.pathname + location.search + "#terkirim");
         window.scrollTo(0, 0);
       } catch (ex) {
-        btn.disabled = false; btn.textContent = "Kirim naskah";
+        btn.disabled = false; btn.textContent = "Kirim tulisan";
         const c = ex && ex.code;
         showErr(c === "inbox_data" ? "Periksa kembali judul, penulis, isi, dan email Anda." :
-          c === "inbox_berkas" ? "Berkas tidak bisa diterima. PDF harus berupa berkas PDF asli, maksimal 10 MB." :
-          c === "inbox_net" || c === "inbox_bad" ? "Naskah gagal dikirim. Periksa koneksi internet lalu coba lagi." :
-          "Naskah gagal dikirim. Coba lagi beberapa saat lagi.");
+          c === "inbox_berkas" ? "Gambar sampul tidak bisa diterima. Coba gambar lain (JPG/PNG)." :
+          c === "inbox_net" || c === "inbox_bad" ? "Tulisan gagal dikirim. Periksa koneksi internet lalu coba lagi." :
+          "Tulisan gagal dikirim. Coba lagi beberapa saat lagi.");
       }
     }
 
@@ -1012,74 +1098,64 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       const missing = [];
       if (!get("title")) missing.push("judul");
       if (!get("authors")) missing.push("penulis");
-      if (!get("body") && !get("abstract") && !(draft.pdf || draft.pdfId || draft.pdfPath || draft.pdfBlob)) missing.push("isi, ringkasan, atau berkas PDF");
+      if (!get("body")) missing.push("isi tulisan (ketik langsung atau ambil dari PDF)");
       if (sub && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(get("email"))) missing.push("email yang valid");
-      if (sub && !form.agree.checked) missing.push("centang pernyataan keaslian naskah");
+      if (sub && !form.agree.checked) missing.push("centang pernyataan keaslian tulisan");
       if (missing.length) { showErr("Lengkapi dulu: " + missing.join(", ") + "."); return; }
       err.hidden = true;
       if (sub) { await sendSubmission(get, showErr); return; }
+
       const btn = $("#btn-submit"); const label = btn.textContent;
       btn.disabled = true; btn.textContent = "Menyimpan…";
       try {
-        if (mode === "shared" && (draft.coverBlob || draft.pdfBlob)) {
-          if (!assetsCap) throw { code: "no_assets" };
-          if (draft.coverBlob) { btn.textContent = "Mengunggah gambar…"; draft.coverId = (await assetsCap.upload(draft.coverBlob, { type: "image/jpeg" })).id; draft.coverBlob = null; }
-          if (draft.pdfBlob) { btn.textContent = "Mengunggah PDF…"; draft.pdfId = (await assetsCap.upload(draft.pdfBlob, { type: "application/pdf" })).id; draft.pdfBlob = null; }
-          btn.textContent = "Menyimpan…";
-        }
         const newId = a ? a.id : uid();
-        if (mode === "github" && (draft.coverBlob || draft.pdfBlob)) {
-          const stamp = Date.now().toString(36);
-          if (draft.coverBlob) {
-            btn.textContent = "Mengunggah gambar…";
-            const path = FILES_DIR + newId + "-" + stamp + "-sampul.jpg";
-            await ghPutFile(path, await blobToB64(draft.coverBlob), "Unggah sampul " + newId);
-            draft.coverPath = path; draft.coverBlob = null;
-          }
-          if (draft.pdfBlob) {
-            btn.textContent = "Mengunggah PDF…";
-            const path = FILES_DIR + newId + "-" + stamp + ".pdf";
-            await ghPutFile(path, await blobToB64(draft.pdfBlob), "Unggah PDF " + newId);
-            draft.pdfPath = path; draft.pdfBlob = null;
-          }
-          btn.textContent = "Menyimpan…";
+        if (mode === "shared" && draft.coverBlob) {
+          if (!assetsCap) throw { code: "no_assets" };
+          btn.textContent = "Mengunggah gambar…";
+          draft.coverId = (await assetsCap.upload(draft.coverBlob, { type: "image/jpeg" })).id; draft.coverBlob = null;
         }
-        const type = get("type") || "berita";
-        const isJ = type === "jurnal";
-        const rec = {
-          id: newId, created: a ? a.created || Date.now() : Date.now(), contoh: false, type,
-          title: get("title"), authors: get("authors"), rubrik: get("rubrik"), date: get("date") || new Date().toISOString().slice(0, 10),
+        if (mode === "github" && draft.coverBlob) {
+          btn.textContent = "Mengunggah gambar…";
+          const path = FILES_DIR + newId + "-" + Date.now().toString(36) + "-sampul.jpg";
+          await ghPutFile(path, await blobToB64(draft.coverBlob), "Unggah sampul " + newId);
+          draft.coverPath = path; draft.coverBlob = null;
+        }
+        btn.textContent = "Menyimpan…";
+        // Start from the old record so fields the form no longer shows (volume, DOI, legacy PDF) survive an edit.
+        const rec = Object.assign({}, a || {}, {
+          id: newId, created: a ? a.created || Date.now() : Date.now(), contoh: false, type: "tulisan",
+          title: get("title"), authors: get("authors"), rubrik: get("rubrik"),
+          date: get("date") || (a && a.date) || new Date().toISOString().slice(0, 10),
           abstract: get("abstract"), body: get("body"),
-          affiliation: isJ ? get("affiliation") : "", volume: isJ ? get("volume") : "",
-          issue: isJ ? get("issue") : "", pages: isJ ? get("pages") : "",
-          doi: isJ ? get("doi").replace(/^https?:\/\/(dx\.)?doi\.org\//, "") : "",
-          keywords: isJ ? get("keywords") : "", references: isJ ? get("references") : "",
-          pdfName: (draft.pdf || draft.pdfId || draft.pdfPath) ? draft.pdfName : ""
-        };
-        if (mode === "shared") { rec.coverId = draft.coverId; rec.pdfId = draft.pdfId; }
-        else if (mode === "github") { rec.coverPath = draft.coverPath; rec.pdfPath = draft.pdfPath; }
-        else { rec.cover = draft.cover; rec.pdf = draft.pdf; }
+          affiliation: get("affiliation"), keywords: get("keywords"), references: get("references")
+        });
+        // The body now holds the text, so a legacy PDF copy is no longer needed.
+        const oldPdf = { id: rec.pdfId, path: rec.pdfPath };
+        delete rec.pdf; delete rec.pdfId; delete rec.pdfPath; delete rec.pdfName;
+        if (mode === "shared") { rec.coverId = draft.coverId; delete rec.cover; delete rec.coverPath; }
+        else if (mode === "github") { rec.coverPath = draft.coverPath; delete rec.cover; delete rec.coverId; }
+        else { rec.cover = draft.cover; delete rec.coverId; delete rec.coverPath; }
         await put(rec);
         articles = articles.filter(x => x.id !== rec.id).concat(rec);
-        if (mode === "shared" && a) {
-          if (a.coverId && a.coverId !== rec.coverId) await dropAsset(a.coverId);
-          if (a.pdfId && a.pdfId !== rec.pdfId) await dropAsset(a.pdfId);
+        if (mode === "shared") {
+          if (a && a.coverId && a.coverId !== rec.coverId) await dropAsset(a.coverId);
+          if (oldPdf.id) await dropAsset(oldPdf.id);
         }
-        if (mode === "github" && a) {
-          if (a.coverPath && a.coverPath !== rec.coverPath) await ghDeleteFile(a.coverPath);
-          if (a.pdfPath && a.pdfPath !== rec.pdfPath) await ghDeleteFile(a.pdfPath);
+        if (mode === "github") {
+          if (a && a.coverPath && a.coverPath !== rec.coverPath) await ghDeleteFile(a.coverPath);
+          if (oldPdf.path) await ghDeleteFile(oldPdf.path);
         }
-        toast(mode === "github" ? "Tersimpan di GitHub. Pengunjung melihatnya dalam 1–2 menit." : (a ? "Perubahan disimpan" : "Artikel diterbitkan"));
+        toast(mode === "github" ? "Tersimpan di GitHub. Pengunjung melihatnya dalam 1–2 menit." : (a ? "Perubahan disimpan" : "Tulisan diterbitkan"));
         location.hash = "artikel-" + rec.id;
       } catch (ex) {
         btn.disabled = false; btn.textContent = label;
         const code = ex && ex.code;
-        if (code === "no_assets") showErr("Berkas tidak dapat diunggah dari tampilan ini. Hapus gambar/PDF lalu terbitkan, atau buka halaman sebagai pemilik.");
-        else if (code === "too_large") showErr("Berkas terlalu besar. Batasnya 20 MB per berkas.");
-        else if (code === "quota_or_state" || code === "quota_exceeded") showErr("Ruang penyimpanan penuh. Hapus beberapa artikel lama lalu coba lagi.");
+        if (code === "no_assets") showErr("Gambar tidak dapat diunggah dari tampilan ini. Hapus gambar lalu terbitkan, atau buka halaman sebagai pemilik.");
+        else if (code === "too_large") showErr("Gambar terlalu besar. Batasnya 20 MB.");
+        else if (code === "quota_or_state" || code === "quota_exceeded") showErr("Ruang penyimpanan penuh. Hapus beberapa tulisan lama lalu coba lagi.");
         else if (code && String(code).startsWith("gh_")) showErr(ghErrorText(ex));
-        else if (code === "invalid_argument" && mode === "shared") showErr("Artikel tidak tersimpan. Teksnya mungkin terlalu panjang (maks. sekitar 250 KB), atau akun Anda tidak punya izin mengubah situs ini.");
-        else showErr("Artikel gagal disimpan. Periksa koneksi lalu coba lagi.");
+        else if (code === "invalid_argument" && mode === "shared") showErr("Tulisan tidak tersimpan. Teksnya mungkin terlalu panjang (maks. sekitar 250 KB), atau akun Anda tidak punya izin mengubah situs ini.");
+        else showErr("Tulisan gagal disimpan. Periksa koneksi lalu coba lagi.");
       }
     });
   }
@@ -1148,17 +1224,16 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
     function itemHTML(it) {
       const a = it.article || {};
-      const isJ = a.type === "jurnal";
       const sent = it.submitted ? new Date(it.submitted).toLocaleString("id-ID", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
       const refs = String(a.references || "").split("\n").map(x => x.trim()).filter(Boolean);
       return '<article class="inbox-item" data-inbox="' + esc(it.id) + '">' +
-        '<div class="eyebrow" style="margin:0">' + '<span class="tag tag-' + (isJ ? "jurnal" : "berita") + '">' + (isJ ? "Jurnal" : "Berita") + "</span>" +
-          (a.rubrik ? '<span class="meta">' + esc(a.rubrik) + "</span>" : "") + '<span class="meta">Dikirim ' + esc(sent) + "</span></div>" +
+        '<div class="eyebrow" style="margin:0">' + '<span class="tag tag-cat">' + esc(a.rubrik || "Tulisan") + "</span>" +
+          '<span class="meta">Dikirim ' + esc(sent) + "</span></div>" +
         "<h2>" + esc(a.title) + "</h2>" +
         '<div class="meta">' + esc(authorLine(a)) + (a.affiliation ? " · " + esc(a.affiliation) : "") + "</div>" +
         '<div class="meta">Pengirim: ' + esc(it.name || "-") + " · " + esc(it.email) + (it.pdfFileId ? " · PDF: " + esc(it.pdfName) : "") + (it.coverFileId ? " · ada gambar sampul" : "") + "</div>" +
         "<details><summary>Baca isi naskah</summary>" +
-          (a.abstract ? '<section class="abstract"><h2>' + (isJ ? "Abstrak" : "Ringkasan") + "</h2><p>" + esc(a.abstract) + "</p>" +
+          (a.abstract ? '<section class="abstract"><h2>Ringkasan</h2><p>' + esc(a.abstract) + "</p>" +
             (a.keywords ? '<div class="kw">' + splitList(a.keywords).map(k => "<span>" + esc(k) + "</span>").join("") + "</div>" : "") + "</section>" : "") +
           '<div class="prose">' + (renderBody(a.body) || '<p class="meta">Tidak ada isi teks. Lihat PDF.</p>') + "</div>" +
           (refs.length ? '<section class="refs"><h2>Daftar Pustaka</h2><ol>' + refs.map(r => "<li>" + esc(r) + "</li>").join("") + "</ol></section>" : "") +
@@ -1211,7 +1286,6 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
           busy(true);
           try {
             const a = it.article || {};
-            const isJ = a.type === "jurnal";
             const id = uid(), stamp = Date.now().toString(36);
             let pdfPath = "", coverPath = "";
             if (it.pdfFileId) {
@@ -1226,11 +1300,11 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
             }
             btn.textContent = "Menerbitkan…";
             const rec = {
-              id, created: Date.now(), contoh: false, type: isJ ? "jurnal" : "berita",
+              id, created: Date.now(), contoh: false, type: "tulisan",
               title: String(a.title || ""), authors: String(a.authors || ""), rubrik: String(a.rubrik || ""),
               date: new Date().toISOString().slice(0, 10), abstract: String(a.abstract || ""), body: String(a.body || ""),
-              affiliation: isJ ? String(a.affiliation || "") : "", volume: "", issue: "", pages: "", doi: "",
-              keywords: isJ ? String(a.keywords || "") : "", references: isJ ? String(a.references || "") : "",
+              affiliation: String(a.affiliation || ""), volume: "", issue: "", pages: "", doi: "",
+              keywords: String(a.keywords || ""), references: String(a.references || ""),
               pdfName: pdfPath ? String(it.pdfName || "naskah.pdf") : "", coverPath, pdfPath
             };
             await put(rec);
@@ -1294,7 +1368,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
     if (gh) {
       app.innerHTML = '<div class="wrap"><div class="form-page"><h1>Pengelola</h1><p>Anda masuk sebagai pengelola repositori <strong>' + esc(gh.owner + "/" + gh.repo) + '</strong> (branch ' + esc(gh.branch) + ').</p>' +
-        '<div class="form-actions"><a class="btn btn-primary" href="#kirim">+ Unggah Artikel</a><a class="btn" href="#tinjau">Tinjau Naskah</a><button class="btn" type="button" id="btn-logout">Keluar</button></div>' +
+        '<div class="form-actions"><a class="btn btn-primary" href="#kirim">+ Tulis</a><a class="btn" href="#tinjau">Tinjau Naskah</a><button class="btn" type="button" id="btn-logout">Keluar</button></div>' +
         '<form class="submit" id="pass-form" novalidate style="margin-top:28px"><fieldset><legend>Sandi pengelola</legend>' +
           '<p style="margin:0;font-size:.95rem">' + (adminSeal
             ? "Sandi pengelola <strong>sudah aktif</strong>. Isi kolom di bawah untuk menggantinya."
@@ -1404,8 +1478,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     else if (h === "masuk") renderLogin();
     else if (h === "kirim-naskah") renderForm(null, { submission: true });
     else if (h === "tinjau") renderReview();
-    else if (h === "berita" || h === "jurnal") { if (view.filter !== h) view.query = ""; renderHome(h); }
-    else { if (view.filter !== "semua") view.query = ""; renderHome("semua"); }
+    else renderHome(); // also old #berita / #jurnal links
     if (scroll) window.scrollTo(0, 0);
   }
   window.addEventListener("hashchange", () => route(true));
@@ -1491,11 +1564,11 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     const note = $("#storage-note");
     if (mode === "shared") note.textContent = canWrite
       ? "Artikel tersimpan di server dan langsung terlihat oleh semua pengunjung. Hanya Anda dan editor yang Anda undang yang dapat mengunggah, mengubah, atau menghapus."
-      : "Muara Kata: tempat semua cerita bermuara. Berita, artikel jurnal, dan karya tulis dari banyak penulis. Kutipan APA tersedia di setiap artikel jurnal.";
+      : "Muara Kata: tempat semua cerita bermuara. Cerita, puisi, esai, ide, dan tulisan ilmiah dari banyak penulis, dalam satu tempat.";
     else if (mode === "closed") note.textContent = "Masuk ke akun claude.ai untuk membaca artikel.";
     else if (mode === "github") note.textContent = canWrite
-      ? "Anda masuk sebagai pengelola. Artikel yang diterbitkan disimpan ke repositori GitHub dan muncul untuk semua pengunjung dalam 1–2 menit."
-      : "Muara Kata: tempat semua cerita bermuara. Berita, artikel jurnal, dan karya tulis dari banyak penulis. Kutipan APA tersedia di setiap artikel jurnal.";
+      ? "Anda masuk sebagai pengelola. Tulisan yang diterbitkan disimpan ke repositori GitHub dan muncul untuk semua pengunjung dalam 1–2 menit."
+      : "Muara Kata: tempat semua cerita bermuara. Cerita, puisi, esai, ide, dan tulisan ilmiah dari banyak penulis, dalam satu tempat.";
     const adm = $("#btn-admin");
     adm.hidden = mode !== "github";
     adm.textContent = gh ? "Pengelola" : "Masuk pengelola";

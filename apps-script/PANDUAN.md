@@ -1,6 +1,6 @@
 # Memasang kotak masuk naskah (sekitar 5 menit)
 
-Dengan kotak masuk ini, siapa pun bisa mengirim naskah lewat menu **Kirim Naskah** di website tanpa membuat akun. Naskah disimpan di Google Drive Anda dan **tidak tampil** di website sampai Anda menerimanya di halaman **Tinjau Naskah**.
+Dengan kotak masuk ini, siapa pun bisa mengirim naskah lewat menu **Kirim Tulisan** di website tanpa membuat akun. Naskah disimpan di Google Drive Anda dan **tidak tampil** di website sampai Anda menerimanya di halaman **Tinjau Naskah**.
 
 Yang dibutuhkan: akun Google (Gmail) dan akses pengelola website (token GitHub).
 
@@ -35,7 +35,7 @@ Yang dibutuhkan: akun Google (Gmail) dan akses pengelola website (token GitHub).
 1. Buka website, klik **Masuk pengelola**, lalu masuk dengan token GitHub.
 2. Buka menu **Tinjau Naskah**.
 3. Di **Pengaturan kotak masuk**, tempel **URL aplikasi web** dan **kunci admin**, lalu klik **Simpan & uji**.
-4. Tunggu 1–2 menit sampai GitHub Pages memperbarui website. Menu **Kirim Naskah** lalu muncul untuk semua pengunjung.
+4. Tunggu 1–2 menit sampai GitHub Pages memperbarui website. Menu **Kirim Tulisan** lalu muncul untuk semua pengunjung.
 
 ## Sehari-hari
 
