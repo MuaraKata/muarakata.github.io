@@ -1,4 +1,6 @@
-# Tandeallo — Jurnal & Warta
+# Muara Kata
+
+*Tempat semua cerita bermuara.*
 
 Website yang memadukan **jurnal ilmiah** dan **berita**. Semua kode ada di satu file `index.html`, tanpa server atau instalasi.
 
