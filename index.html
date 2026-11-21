@@ -211,9 +211,24 @@ legend { font-family: var(--font-display); font-weight: 700; padding: 0 6px; }
 .seg.chips { flex-wrap: wrap; border-radius: 18px; max-width: 100%; }
 .card.no-cover .card-body { border-top: 4px solid var(--accent); }
 .card.no-cover p { -webkit-line-clamp: 5; }
-.article.poem .prose { font-size: 1.12rem; line-height: 1.9; }
-.article.poem .prose p { margin-bottom: 1.6em; }
+.section-break { text-align: center; color: var(--muted); font-size: 1.25rem; margin: 2.2em 0; user-select: none; }
+/* Poem page: one centred column like a page in a poetry book; the poem block is as wide as its longest
+   line and centred, while the lines themselves stay left-aligned. Side panels drop below the poem. */
+.article.poem { grid-template-columns: minmax(0, 1fr); justify-items: center; gap: 40px; }
+.article.poem .article-main { width: 100%; max-width: 640px; }
+.article.poem .back { display: block; }
+.article.poem .eyebrow { justify-content: center; }
+.article.poem h1 { font-family: var(--font-body); font-weight: 600; font-size: clamp(1.9rem, 5vw, 2.6rem); line-height: 1.15; letter-spacing: -0.01em; text-align: center; margin-bottom: 12px; }
+.article.poem .byline, .article.poem .affil, .article.poem .article-main > .meta { text-align: center; }
+.article.poem .byline { font-style: italic; }
+.article.poem .byline strong { font-weight: 600; }
+.article.poem .article-main > .meta::after { content: ""; display: block; width: 48px; height: 1px; background: var(--line); margin: 28px auto 0; }
+.article.poem .prose { width: fit-content; max-width: 100%; margin: 36px auto 0; font-size: 1.14rem; line-height: 1.85; }
+.article.poem .prose .stanza { margin: 0 0 1.8em; }
+.article.poem .prose .stanza:last-child { margin-bottom: 0; }
 .article.poem .verse { display: block; padding-left: 1.5em; text-indent: -1.5em; }
+.article.poem .section-break { margin: 2.4em 0 2.2em; }
+.article.poem .rail { position: static; width: 100%; max-width: 640px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; }
 #drop-pdf { margin-bottom: 4px; }
 
 /* ---------- Inbox ---------- */
@@ -241,6 +256,8 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 }
 @media (max-width: 560px) {
   body { font-size: 16px; }
+  .article.poem .prose { font-size: 1.03rem; line-height: 1.8; margin-top: 28px; }
+  .article.poem .verse { padding-left: 1.2em; text-indent: -1.2em; }
   .brand-tag { display: none; }
   .type-pick { grid-template-columns: 1fr; }
   .masthead .wrap { gap: 10px; }
@@ -565,8 +582,11 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   function inline(s) {
     return s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/\*(.+?)\*/g, "<em>$1</em>");
   }
+  const SECTION_BREAK = /^(\*\s*\*\s*\*|⁂)$/;
+  const sectionBreak = '<div class="section-break" role="separator" aria-label="Jeda">⁂</div>';
   function renderBody(text) {
     return String(text || "").split(/\n\s*\n/).map(block => {
+      if (SECTION_BREAK.test(block.trim())) return sectionBreak;
       const b = esc(block.trim());
       if (!b) return "";
       if (b.startsWith("## ")) return "<h3>" + inline(b.slice(3)) + "</h3>";
@@ -580,6 +600,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     return String(text || "").split(/\n\s*\n/).map(block => {
       const b = block.trim();
       if (!b) return "";
+      if (SECTION_BREAK.test(b)) return sectionBreak;
       if (b.startsWith("## ")) return "<h3>" + inline(esc(b.slice(3))) + "</h3>";
       return '<p class="stanza">' + b.split("\n").map(l => '<span class="verse">' + inline(esc(l.trim())) + "</span>").join("") + "</p>";
     }).join("");
@@ -849,7 +870,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   }
 
   function excerpt(a, n) {
-    const src = a.abstract || String(a.body || "").replace(/^##\s.*$/gm, "").replace(/^>\s/gm, "");
+    const src = a.abstract || String(a.body || "").replace(/^##\s.*$/gm, "").replace(/^(\*\s*\*\s*\*|⁂)\s*$/gm, "").replace(/^>\s/gm, "");
     const t = src.replace(/\*\*?/g, "").replace(/\s+/g, " ").trim();
     return t.length > n ? t.slice(0, n).replace(/\s+\S*$/, "") + "…" : t;
   }
@@ -1002,7 +1023,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
             '<input type="file" id="pdf" accept="application/pdf,.pdf">' +
             '<span class="meta" id="pdf-status">Teks dari PDF dimasukkan ke kolom Isi tulisan di bawah, lalu tampil sebagai halaman web, bukan sebagai berkas PDF. Anda bisa merapikannya dulu. Untuk puisi, isi kategori "Puisi" lebih dulu supaya setiap baris tetap terjaga.</span>' +
             '<button type="button" class="btn btn-sm" id="pdf-undo" hidden>Kembalikan isi sebelumnya</button></div>' +
-          '<div class="field"><label for="body">Isi tulisan *</label><textarea class="big" id="body" name="body">' + v("body") + '</textarea><span class="hint">Pisahkan paragraf dengan baris kosong. "## Judul" = subjudul, "&gt; teks" = kutipan, **tebal**, *miring*. Untuk puisi, setiap baris tetap seperti yang Anda ketik.</span></div>' +
+          '<div class="field"><label for="body">Isi tulisan *</label><textarea class="big" id="body" name="body">' + v("body") + '</textarea><span class="hint">Pisahkan paragraf dengan baris kosong. "## Judul" = subjudul, "***" = jeda antarbagian, "&gt; teks" = kutipan, **tebal**, *miring*. Untuk puisi, setiap baris tetap seperti yang Anda ketik.</span></div>' +
           '<div class="field"><label for="abstract">Ringkasan</label><textarea id="abstract" name="abstract" style="min-height:80px">' + v("abstract") + '</textarea><span class="hint">Opsional. Satu-dua kalimat yang tampil di daftar tulisan</span></div>' +
           "<details" + (extrasOpen ? " open" : "") + '><summary style="cursor:pointer;font-family:var(--font-display);font-weight:500">Bagian tambahan untuk tulisan ilmiah (opsional)</summary><div style="display:grid;gap:16px;margin-top:14px">' +
             '<div class="field"><label for="affiliation">Asal / afiliasi penulis</label><input type="text" id="affiliation" name="affiliation" value="' + v("affiliation") + '"></div>' +
