@@ -40,8 +40,8 @@ Yang dibutuhkan: akun Google (Gmail) dan akses pengelola website (token GitHub).
 ## Sehari-hari
 
 - Saat ada naskah baru, Anda menerima email.
-- Buka **Tinjau Naskah** untuk membaca naskah dan PDF-nya, lalu klik **Terima & terbitkan** atau **Tolak**.
-- Naskah yang diterima langsung masuk ke website. Isi volume, nomor, halaman, dan DOI lewat **Ubah artikel**.
+- Buka **Tinjau Naskah** untuk membaca naskah, lalu klik **Terima & terbitkan** atau **Tolak**.
+- Naskah yang diterima langsung masuk ke website. Rapikan isinya kapan saja lewat **Ubah tulisan**.
 - Berkas naskah yang sudah diputuskan dipindah ke Sampah di Google Drive.
 
 ## Memperbarui skrip

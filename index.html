@@ -1171,7 +1171,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       '<details id="inbox-settings" style="margin-top:28px"' + (submitUrl && key ? "" : " open") + '><summary style="cursor:pointer;font-family:var(--font-display);font-weight:700">Pengaturan kotak masuk</summary>' +
         '<form class="submit" id="inbox-form" novalidate style="margin-top:14px"><fieldset><legend>Google Apps Script</legend>' +
           '<p style="margin:0;font-size:.92rem">Naskah disimpan di Google Drive Anda lewat Google Apps Script. Ikuti <a href="' + esc(guide) + '" target="_blank" rel="noopener">panduan pemasangan</a> (sekitar 5 menit), lalu isi dua kolom di bawah.</p>' +
-          '<div class="field"><label for="inbox-url">URL aplikasi web</label><input type="url" id="inbox-url" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(submitUrl) + '"><span class="hint">Disimpan di repositori agar menu Kirim Naskah muncul untuk pengunjung</span></div>' +
+          '<div class="field"><label for="inbox-url">URL aplikasi web</label><input type="url" id="inbox-url" placeholder="https://script.google.com/macros/s/…/exec" value="' + esc(submitUrl) + '"><span class="hint">Disimpan di repositori agar menu Kirim Tulisan muncul untuk pengunjung</span></div>' +
           '<div class="field"><label for="inbox-key">Kunci admin</label><input type="text" id="inbox-key" autocomplete="off" spellcheck="false" value="' + esc(key) + '"><span class="hint">Hanya disimpan di browser ini</span></div>' +
         '</fieldset><p class="error" id="inbox-error" hidden></p>' +
         '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-inbox-save">Simpan &amp; uji</button></div></form>' +
@@ -1204,7 +1204,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       btn.disabled = false; btn.textContent = "Simpan & uji";
       applyModeUI();
       $("#inbox-settings").open = false;
-      toast(url !== before ? "Tersambung. Menu Kirim Naskah muncul untuk pengunjung dalam 1–2 menit." : "Tersambung");
+      toast(url !== before ? "Tersambung. Menu Kirim Tulisan muncul untuk pengunjung dalam 1–2 menit." : "Tersambung");
       loadList();
     });
 
