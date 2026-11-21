@@ -213,6 +213,7 @@ legend { font-family: var(--font-display); font-weight: 700; padding: 0 6px; }
 .card.no-cover p { -webkit-line-clamp: 5; }
 .article.poem .prose { font-size: 1.12rem; line-height: 1.9; }
 .article.poem .prose p { margin-bottom: 1.6em; }
+.article.poem .verse { display: block; padding-left: 1.5em; text-indent: -1.5em; }
 #drop-pdf { margin-bottom: 4px; }
 
 /* ---------- Inbox ---------- */
@@ -303,7 +304,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   let idb = null, memory = [];
   let mode = "local", shared = null, assetsCap = null, dl = null, canWrite = true;
   // Fallback repo for GitHub mode; on <owner>.github.io/<repo> it is read from the address.
-  const GH_DEFAULT = { owner: "WisarTandeallo", repo: "Tandeallo" };
+  const GH_DEFAULT = { owner: "WisarTandeallo", repo: "muaramakna" }; // only used off github.io
   const CONTENT = "content/articles.json", FILES_DIR = "content/files/", TOKEN_KEY = "tandeallo-gh-token";
   let gh = null; // { owner, repo, branch, token } once the manager is signed in
   // Public submissions go to a Google Apps Script web app (apps-script/Code.gs); its URL lives in content/config.json.
@@ -484,7 +485,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     const raw = msg ? " (Pesan GitHub: \"" + msg + "\")" : "";
     if (code === "gh_401") return "Token tidak valid atau sudah kedaluwarsa. Buat token baru, lalu Keluar dan masuk lagi." + raw;
     if (/approv|forbids access via a fine-grained|organization/i.test(msg)) return "Organisasi pemilik repositori belum menyetujui token ini. Setujui di Settings organisasi → Personal access tokens → Pending requests, atau buat token dengan Resource owner yang benar." + raw;
-    if (code === "gh_403" || code === "gh_404") return "Token ini hanya bisa membaca, belum bisa mengubah isi repositori. Buat token baru dengan Repository access ke Tandeallo dan Permissions → Contents: Read and write, lalu Keluar dan masuk lagi." + raw;
+    if (code === "gh_403" || code === "gh_404") return "Token ini hanya bisa membaca, belum bisa mengubah isi repositori. Buat token baru dengan Repository access ke " + (gh ? gh.repo : "repositori ini") + " dan Permissions → Contents: Read and write, lalu Keluar dan masuk lagi." + raw;
     if (code === "gh_409" || code === "gh_422") return "GitHub menolak perubahan karena repositori baru saja berubah. Muat ulang halaman lalu coba lagi." + raw;
     return "GitHub menolak permintaan." + raw;
   }
@@ -571,6 +572,16 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       if (b.startsWith("## ")) return "<h3>" + inline(b.slice(3)) + "</h3>";
       if (b.startsWith("&gt; ")) return "<blockquote>" + inline(b.slice(5)).replace(/\n/g, "<br>") + "</blockquote>";
       return "<p>" + inline(b).replace(/\n/g, "<br>") + "</p>";
+    }).join("");
+  }
+  // Poems: one block per verse line, so a line that wraps on a narrow screen gets a hanging indent
+  // instead of looking like a new line of the poem.
+  function renderPoem(text) {
+    return String(text || "").split(/\n\s*\n/).map(block => {
+      const b = block.trim();
+      if (!b) return "";
+      if (b.startsWith("## ")) return "<h3>" + inline(esc(b.slice(3))) + "</h3>";
+      return '<p class="stanza">' + b.split("\n").map(l => '<span class="verse">' + inline(esc(l.trim())) + "</span>").join("") + "</p>";
     }).join("");
   }
   function issueLabel(a) {
@@ -883,7 +894,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         (a.abstract ? '<section class="abstract"><h2>Ringkasan</h2><p>' + esc(a.abstract) + "</p>" +
           (a.keywords ? '<div class="kw"><span class="meta" style="border:0;padding:0;color:var(--muted)">Kata kunci:</span>' + splitList(a.keywords).map(k => "<span>" + esc(k) + "</span>").join("") + "</div>" : "") +
         "</section>" : "") +
-        '<div class="prose" id="prose">' + (legacyPdf ? '<p class="meta">Menyiapkan isi tulisan…</p>' : renderBody(a.body)) + "</div>" +
+        '<div class="prose" id="prose">' + (legacyPdf ? '<p class="meta">Menyiapkan isi tulisan…</p>' : isPoem(a) ? renderPoem(a.body) : renderBody(a.body)) + "</div>" +
         (refList.length ? '<section class="refs"><h2>Daftar Pustaka</h2><ol>' + refList.map(r => "<li>" + esc(r) + "</li>").join("") + "</ol></section>" : "") +
       "</div>" +
       '<aside class="rail">' +
