@@ -9,7 +9,7 @@ Satu tempat menulis untuk cerita, puisi, esai, ide, dan tulisan ilmiah. Semua ko
 1. Buka **Settings → Pages** di repositori ini.
 2. Pada **Build and deployment → Source**, pilih **Deploy from a branch**.
 3. Pilih branch `main` dan folder `/ (root)`, lalu klik **Save**.
-4. Tunggu 1–2 menit. Website Anda tersedia di **https://wisartandeallo.github.io/muaramakna/**.
+4. Tunggu 1–2 menit. Website Anda tersedia di **https://muarakata.github.io/**.
 
 ## Mengunggah artikel (pengelola)
 
