@@ -278,21 +278,21 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       <a href="#" data-nav="beranda">Beranda</a>
       <a href="#kirim-naskah" data-nav="naskah" hidden>Kirim Tulisan</a>
       <a href="#tinjau" data-nav="tinjau" hidden>Tinjau Naskah</a>
-      <a href="#kirim" class="btn btn-primary btn-sm" data-nav="kirim">+ Tulis</a>
+      <a href="#kirim" class="btn btn-primary btn-sm" data-nav="kirim" hidden>+ Tulis</a>
     </nav>
   </div>
 </header>
 
-<main id="app"></main>
+<main id="app"><div class="wrap" style="padding-block:48px"><div class="empty">Memuat tulisan…</div></div></main>
 
 <footer>
   <div class="wrap">
-    <p id="storage-note">Tulisan tersimpan di browser perangkat ini (IndexedDB). Buat cadangan secara berkala, lalu pulihkan di perangkat lain lewat tombol Impor.</p>
+    <p id="storage-note">Muara Kata: tempat semua cerita bermuara.</p>
     <div class="foot-actions">
       <a class="btn btn-sm" id="btn-admin" href="#masuk" hidden>Masuk pengelola</a>
-      <button class="btn btn-sm" id="btn-export" type="button">Ekspor cadangan (.json)</button>
-      <button class="btn btn-sm" id="btn-copy-backup" type="button">Salin cadangan</button>
-      <label class="btn btn-sm" for="import-file">Impor cadangan</label>
+      <button class="btn btn-sm" id="btn-export" type="button" hidden>Ekspor cadangan (.json)</button>
+      <button class="btn btn-sm" id="btn-copy-backup" type="button" hidden>Salin cadangan</button>
+      <label class="btn btn-sm" for="import-file" hidden>Impor cadangan</label>
       <input type="file" id="import-file" accept="application/json,.json" hidden>
     </div>
   </div>
@@ -404,13 +404,20 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     return { owner, repo: seg && !/\.html?$/.test(seg) ? seg : owner + ".github.io" };
   }
   async function ghReq(method, path, body, base) {
-    const r = await fetch((base || "https://api.github.com/repos/" + gh.owner + "/" + gh.repo + "/") + path, {
-      method,
-      // GitHub marks API responses cacheable for 60 s; a cached file sha makes the next save fail with 409.
-      cache: "no-store",
-      headers: { Authorization: "Bearer " + gh.token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
-      body: body ? JSON.stringify(body) : undefined
-    });
+    // Large uploads get longer; nothing waits forever on a stalled mobile connection.
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), body && body.content && body.content.length > 2e6 ? 120000 : 25000);
+    let r;
+    try {
+      r = await fetch((base || "https://api.github.com/repos/" + gh.owner + "/" + gh.repo + "/") + path, {
+        method, signal: ctl.signal,
+        // GitHub marks API responses cacheable for 60 s; a cached file sha makes the next save fail with 409.
+        cache: "no-store",
+        headers: { Authorization: "Bearer " + gh.token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+        body: body ? JSON.stringify(body) : undefined
+      });
+    } catch (e) { throw { code: "gh_net", message: "" }; }
+    finally { clearTimeout(timer); }
     if (!r.ok) {
       let msg = ""; try { msg = (await r.json()).message || ""; } catch (e) {}
       throw { code: "gh_" + r.status, message: msg };
@@ -462,7 +469,10 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       } catch (e) { if (e.code !== "gh_409" || attempt) throw e; }
     }
   }
+  let ghNetFail = false;  // last sign-in failed for lack of network, not because GitHub refused
+  let signingIn = null;   // pending background sign-in with a remembered token
   async function ghSignIn(token) {
+    ghNetFail = false;
     const where = ghRepoFromLocation();
     gh = Object.assign(where, { token, branch: "" });
     try {
@@ -473,13 +483,14 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       try { await ghReq("GET", "branches/main"); gh.branch = "main"; } catch (e) {}
       articles = (await ghReadArticles()).list;
       const denied = await ghProbeWrite();
-      if (denied) { gh = null; return denied; }
+      if (denied) { gh = null; ghNetFail = /tidak bisa dihubungi/.test(denied); return denied; }
       canWrite = true;
       return "";
     } catch (e) {
       gh = null;
       if (e && (e.code === "gh_401" || e.code === "gh_403")) return ghErrorText(e);
       if (e && e.code === "gh_404") return "Repositori " + where.owner + "/" + where.repo + " tidak ditemukan dengan token ini. Pastikan token diberi akses ke repositori tersebut.";
+      ghNetFail = true;
       return "Tidak dapat menghubungi GitHub. Periksa koneksi lalu coba lagi.";
     }
   }
@@ -500,6 +511,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   function ghErrorText(e) {
     const code = e && e.code, msg = (e && e.message) || "";
     const raw = msg ? " (Pesan GitHub: \"" + msg + "\")" : "";
+    if (code === "gh_net") return "GitHub tidak bisa dihubungi atau terlalu lama menjawab. Periksa koneksi internet lalu coba lagi.";
     if (code === "gh_401") return "Token tidak valid atau sudah kedaluwarsa. Buat token baru, lalu Keluar dan masuk lagi." + raw;
     if (/approv|forbids access via a fine-grained|organization/i.test(msg)) return "Organisasi pemilik repositori belum menyetujui token ini. Setujui di Settings organisasi → Personal access tokens → Pending requests, atau buat token dengan Resource owner yang benar." + raw;
     if (code === "gh_403" || code === "gh_404") return "Token ini hanya bisa membaca, belum bisa mengubah isi repositori. Buat token baru dengan Repository access ke " + (gh ? gh.repo : "repositori ini") + " dan Permissions → Contents: Read and write, lalu Keluar dan masuk lagi." + raw;
@@ -986,6 +998,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   function renderForm(editId, opts) {
     const sub = !!(opts && opts.submission);
     if (sub && (mode !== "github" || !submitUrl)) { toast("Pengiriman tulisan belum dibuka"); location.hash = ""; return; }
+    if (!sub && signingIn) { app.innerHTML = '<div class="wrap" style="padding-block:48px"><div class="empty">Memeriksa akses pengelola…</div></div>'; return; }
     if (!sub && !canWrite) { toast("Hanya pengelola yang dapat menerbitkan tulisan"); location.hash = ""; return; }
     setNav(sub ? "naskah" : "kirim");
     const a = editId ? articles.find(x => x.id === editId) : null;
@@ -1193,6 +1206,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   }
 
   function renderReview() {
+    if (signingIn) { app.innerHTML = '<div class="wrap" style="padding-block:48px"><div class="empty">Memeriksa akses pengelola…</div></div>'; return; }
     if (mode !== "github" || !canWrite) { toast("Masuk sebagai pengelola untuk meninjau naskah"); location.hash = mode === "github" ? "masuk" : ""; return; }
     setNav("tinjau");
     let key = lsGet(INBOX_KEY) || "";
@@ -1396,6 +1410,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   function renderLogin() {
     setNav("");
     if (mode !== "github") { location.hash = ""; return; }
+    if (signingIn) { app.innerHTML = '<div class="wrap" style="padding-block:48px"><div class="empty">Memeriksa akses pengelola…</div></div>'; return; }
     const where = ghRepoFromLocation();
 
     if (gh) {
@@ -1591,19 +1606,23 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     $('[data-nav="kirim"]').hidden = !canWrite;
     $('[data-nav="naskah"]').hidden = !(mode === "github" && submitUrl);
     $('[data-nav="tinjau"]').hidden = !(mode === "github" && canWrite);
+    // Backups are a manager tool on the shared site; on a private copy (local mode) they are the only way to move data.
+    const backups = mode === "local" || canWrite;
     $('label[for="import-file"]').hidden = !canWrite;
-    $("#btn-export").hidden = !canSaveFiles();
+    $("#btn-export").hidden = !(backups && canSaveFiles());
+    $("#btn-copy-backup").hidden = !backups;
     const note = $("#storage-note");
     if (mode === "shared") note.textContent = canWrite
       ? "Artikel tersimpan di server dan langsung terlihat oleh semua pengunjung. Hanya Anda dan editor yang Anda undang yang dapat mengunggah, mengubah, atau menghapus."
       : "Muara Kata: tempat semua cerita bermuara. Cerita, puisi, esai, ide, dan tulisan ilmiah dari banyak penulis, dalam satu tempat.";
     else if (mode === "closed") note.textContent = "Masuk ke akun claude.ai untuk membaca artikel.";
+    else if (mode === "local") note.textContent = "Tulisan tersimpan di browser perangkat ini (IndexedDB). Buat cadangan secara berkala, lalu pulihkan di perangkat lain lewat tombol Impor.";
     else if (mode === "github") note.textContent = canWrite
       ? "Anda masuk sebagai pengelola. Tulisan yang diterbitkan disimpan ke repositori GitHub dan muncul untuk semua pengunjung dalam 1–2 menit."
       : "Muara Kata: tempat semua cerita bermuara. Cerita, puisi, esai, ide, dan tulisan ilmiah dari banyak penulis, dalam satu tempat.";
     const adm = $("#btn-admin");
     adm.hidden = mode !== "github";
-    adm.textContent = gh ? "Pengelola" : "Masuk pengelola";
+    adm.textContent = gh && canWrite ? "Pengelola" : signingIn ? "Memeriksa…" : "Masuk pengelola";
   }
 
   async function loadStatic() {
@@ -1657,8 +1676,15 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       mode = "github"; canWrite = false; loaded = true;
       const saved = lsGet(TOKEN_KEY);
       if (saved) {
-        const problem = await ghSignIn(saved);
-        if (problem) { try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} toast("Sesi pengelola berakhir. Masuk lagi untuk mengunggah."); }
+        signingIn = ghSignIn(saved).then((problem) => {
+          signingIn = null;
+          if (problem && ghNetFail) toast("GitHub belum bisa dihubungi. Tulisan tetap bisa dibaca; muat ulang nanti untuk mengelola.");
+          else if (problem) { try { localStorage.removeItem(TOKEN_KEY); } catch (e) {} toast("Sesi pengelola berakhir. Masuk lagi untuk mengunggah."); }
+          applyModeUI();
+          // Re-render so manager controls appear, unless the reader is typing somewhere.
+          const el = document.activeElement;
+          if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) route(false);
+        });
       }
       applyModeUI(); route(true);
       return;
