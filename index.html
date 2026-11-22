@@ -44,6 +44,7 @@
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--ink);
+  min-height: 100vh; display: flex; flex-direction: column;
   font-family: var(--font-body); font-size: 17px; line-height: 1.6;
 }
 img { max-width: 100%; display: block; }
@@ -100,6 +101,27 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 
 /* ---------- Lead ---------- */
 .lead { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 32px; padding-block: 18px 34px; }
+.lead.solo { grid-template-columns: minmax(0, 1fr); }
+.feature { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: clamp(22px, 4vw, 44px); display: grid; gap: 28px; text-decoration: none; align-content: start; transition: border-color .15s; }
+.feature:hover { border-color: var(--ink); }
+.feature .cover { border-radius: 6px; }
+.feature-head { display: grid; gap: 14px; align-content: start; }
+.feature-label { font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+.feature h2 { font-family: var(--font-display); font-size: clamp(1.8rem, 3.6vw, 2.8rem); line-height: 1.06; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
+.feature.is-poem h2 { font-family: var(--font-body); font-weight: 600; letter-spacing: -0.01em; }
+.feature-by { font-size: 1rem; color: var(--muted); }
+.feature-by strong { color: var(--ink); font-weight: 600; }
+.feature.is-poem .feature-by { font-style: italic; }
+.feature-cta { font-family: var(--font-display); font-weight: 700; color: var(--accent); font-size: .95rem; margin-top: 4px; }
+.feature:hover .feature-cta { text-decoration: underline; text-underline-offset: 4px; }
+.feature-excerpt { margin: 0; color: var(--ink); font-size: 1.08rem; line-height: 1.75; max-width: 62ch; }
+.feature-excerpt.verse-excerpt { font-style: italic; line-height: 1.85; border-left: 3px solid var(--accent-soft); padding-left: 22px; align-self: center; }
+.feature-excerpt .verse { display: block; padding-left: 1.2em; text-indent: -1.2em; }
+.lead.solo .feature { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 56px; align-items: center; }
+.lead.solo .feature .cover { grid-column: 1 / -1; }
+.invite { display: flex; flex-wrap: wrap; gap: 18px 32px; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-block: 32px 56px; }
+.invite h2 { font-family: var(--font-display); font-size: 1.35rem; margin: 0 0 6px; }
+.invite p { margin: 0; color: var(--muted); max-width: 56ch; }
 .lead-story { text-decoration: none; display: grid; gap: 14px; }
 .lead-story h2 { font-family: var(--font-display); font-size: clamp(1.7rem, 3.4vw, 2.6rem); line-height: 1.08; letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
 .lead-story:hover h2 { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 5px; }
@@ -175,7 +197,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .pdf-frame { width: 100%; height: 80vh; border: 1px solid var(--line); border-radius: var(--radius); margin-top: 18px; background: var(--surface); }
 
 /* ---------- Form ---------- */
-.form-page { padding-block: 28px 64px; max-width: 860px; }
+.form-page { padding-block: 28px 64px; max-width: 860px; margin-inline: auto; }
 .form-page h1 { font-family: var(--font-display); font-size: clamp(1.8rem, 4vw, 2.4rem); margin: 0 0 6px; letter-spacing: -0.02em; }
 .form-page > p { color: var(--muted); margin: 0 0 24px; }
 form.submit { display: grid; gap: 22px; }
@@ -184,7 +206,9 @@ legend { font-family: var(--font-display); font-weight: 700; padding: 0 6px; }
 .field { display: grid; gap: 6px; min-width: 0; }
 .field label { font-family: var(--font-display); font-weight: 500; font-size: .95rem; }
 .field .hint { font-size: .8rem; color: var(--muted); font-family: var(--font-mono); }
-.field input[type="text"], .field input[type="date"], .field input[type="url"], .field select, .field textarea {
+.field { align-content: start; }
+.field input[type="text"], .field input[type="date"], .field input[type="url"], .field input[type="email"], .field input[type="password"], .field select { min-height: 46px; }
+.field input[type="text"], .field input[type="date"], .field input[type="url"], .field input[type="email"], .field input[type="password"], .field select, .field textarea {
   width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg);
 }
 .field textarea { resize: vertical; min-height: 110px; line-height: 1.55; }
@@ -200,7 +224,10 @@ legend { font-family: var(--font-display); font-weight: 700; padding: 0 6px; }
 .type-pick label.berita:has(input:checked) { border-color: var(--news); background: var(--news-soft); }
 .type-pick label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
 .drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 16px; display: grid; gap: 8px; background: var(--bg); min-width: 0; }
-.drop input[type="file"] { max-width: 100%; min-width: 0; }
+.drop input[type="file"] { max-width: 100%; min-width: 0; font-size: .9rem; color: var(--muted); }
+.drop input[type="file"]::file-selector-button { font-family: var(--font-display); font-weight: 700; font-size: .88rem; padding: 8px 14px; margin-right: 12px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.drop input[type="file"]::file-selector-button:hover { border-color: var(--ink); }
+.drop > label { font-family: var(--font-display); font-weight: 500; }
 .drop.over { border-color: var(--accent); }
 .drop .preview { max-height: 180px; border-radius: 4px; object-fit: cover; }
 .form-actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
@@ -243,6 +270,7 @@ legend { font-family: var(--font-display); font-weight: 700; padding: 0 6px; }
 .trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 
 /* ---------- Footer ---------- */
+main { flex: 1 0 auto; }
 footer { border-top: 1px solid var(--line); background: var(--surface); }
 footer .wrap { padding-block: 28px; display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
 footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
@@ -252,6 +280,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
 @media (max-width: 900px) {
   .lead, .article { grid-template-columns: minmax(0, 1fr); }
+  .lead.solo .feature { grid-template-columns: minmax(0, 1fr); row-gap: 22px; }
   .rail { position: static; }
 }
 @media (max-width: 560px) {
@@ -569,7 +598,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   const $ = (s, el = document) => el.querySelector(s);
   const app = $("#app");
   let articles = [];
-  let view = { filter: "", query: "" };
+  let view = { filter: "", query: "", leadId: "" };
   let pdfUrl = null, lastArticleJSON = "";
   let inFrame = false; try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
 
@@ -828,6 +857,15 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     return "PDF tidak bisa dibaca. Mungkin berkasnya rusak. Coba PDF lain atau salin teksnya secara manual.";
   }
 
+  // First stanza of a poem (or the excerpt of anything else) for the featured block.
+  function featureExcerpt(a) {
+    if (!isPoem(a) || a.abstract) return { poem: false, html: esc(excerpt(a, 340)) };
+    const stanza = String(a.body || "").split(/\n\s*\n/).map(x => x.trim())
+      .find(x => x && !x.startsWith("## ") && !SECTION_BREAK.test(x)) || "";
+    const lines = stanza.split("\n").map(l => l.trim()).filter(Boolean);
+    return { poem: true, html: lines.slice(0, 6).map(l => '<span class="verse">' + inline(esc(l)) + "</span>").join("") + (lines.length > 6 ? '<span class="verse">…</span>' : "") };
+  }
+
   function renderHome() {
     setNav("beranda");
     const all = sorted(articles);
@@ -838,18 +876,34 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     const today = new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
     let lead = "";
+    view.leadId = "";
     if (!view.filter && !view.query && all.length) {
       const top = all[0], more = all.slice(1, 6);
-      lead = '<section class="wrap lead" aria-label="Sorotan">' +
-        '<a class="lead-story" href="#artikel-' + esc(top.id) + '">' + (coverSrc(top) ? coverHTML(top) : "") +
-          '<div class="eyebrow">' + tags(top) + '<span class="meta">' + fmtDate(top.date) + "</span></div>" +
-          "<h2>" + esc(top.title) + '</h2><span class="meta">Oleh ' + esc(authorLine(top)) + "</span><p>" + esc(excerpt(top, 260)) + "</p></a>" +
-        '<aside class="issue"><div class="issue-head"><h3>Tulisan Terbaru</h3></div>' +
-          (more.length ? more.map(j =>
-            '<a class="issue-item" href="#artikel-' + esc(j.id) + '"><span class="meta">' + esc([j.rubrik, fmtDate(j.date)].filter(Boolean).join(" · ")) + "</span><strong>" + esc(j.title) + '</strong><span class="auth">' + esc(authorLine(j)) + "</span></a>").join("")
-            : '<p class="meta">Tulisan berikutnya akan muncul di sini.</p>') +
-        "</aside></section>";
+      view.leadId = top.id;
+      const ex = featureExcerpt(top);
+      lead = '<section class="wrap lead' + (more.length ? "" : " solo") + '" aria-label="Sorotan">' +
+        '<a class="lead-story feature' + (isPoem(top) ? " is-poem" : "") + '" href="#artikel-' + esc(top.id) + '">' +
+          (coverSrc(top) ? coverHTML(top) : "") +
+          '<div class="feature-head">' +
+            '<div class="eyebrow" style="margin:0"><span class="feature-label">Sorotan</span>' + tags(top) + '<span class="meta">' + fmtDate(top.date) + "</span></div>" +
+            "<h2>" + esc(top.title) + "</h2>" +
+            '<span class="feature-by">Oleh <strong>' + esc(authorLine(top)) + "</strong></span>" +
+            '<span class="feature-cta">Baca selengkapnya →</span>' +
+          "</div>" +
+          '<p class="feature-excerpt' + (ex.poem ? " verse-excerpt" : "") + '">' + ex.html + "</p>" +
+        "</a>" +
+        (more.length ? '<aside class="issue"><div class="issue-head"><h3>Tulisan Terbaru</h3></div>' +
+          more.map(j =>
+            '<a class="issue-item" href="#artikel-' + esc(j.id) + '"><span class="meta">' + esc([j.rubrik, fmtDate(j.date)].filter(Boolean).join(" · ")) + "</span><strong>" + esc(j.title) + '</strong><span class="auth">' + esc(authorLine(j)) + "</span></a>").join("") +
+        "</aside>" : "") +
+      "</section>";
     }
+
+    const invite = canWrite
+      ? '<section class="wrap"><div class="invite"><div><h2>Tulis sesuatu hari ini</h2><p>Cerita, puisi, esai, atau ide. Semua bermuara di sini.</p></div><a class="btn btn-primary" href="#kirim">+ Tulis</a></div></section>'
+      : mode === "github" && submitUrl
+        ? '<section class="wrap"><div class="invite"><div><h2>Punya tulisan?</h2><p>Kirim cerita, puisi, esai, atau ide Anda ke Muara Kata. Setiap tulisan ditinjau redaksi sebelum terbit.</p></div><a class="btn btn-primary" href="#kirim-naskah">Kirim Tulisan</a></div></section>'
+        : "";
 
     app.innerHTML =
       '<section class="toolbar"><div class="wrap">' +
@@ -860,9 +914,15 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         '<div class="search"><input id="q" type="search" placeholder="Cari judul, penulis, kategori…" aria-label="Cari tulisan" value="' + esc(view.query) + '"></div>' +
         '<span class="today">' + today + "</span>" +
       "</div></section>" + lead +
-      '<section class="wrap"><div class="section-title"><h2 id="feed-title"></h2><span class="meta" id="feed-count"></span></div><div class="feed" id="feed"></div></section>';
+      '<section class="wrap" id="feed-section"><div class="section-title"><h2 id="feed-title"></h2><span class="meta" id="feed-count"></span></div><div class="feed" id="feed"></div></section>' +
+      invite;
 
-    $("#q").addEventListener("input", (e) => { view.query = e.target.value; renderFeed(); });
+    $("#q").addEventListener("input", (e) => {
+      view.query = e.target.value;
+      // The featured block belongs to the unfiltered view; searching shows results only.
+      const leadEl = $(".lead"); if (leadEl) leadEl.hidden = !!view.query.trim();
+      renderFeed();
+    });
     document.querySelectorAll("[data-cat]").forEach(b => b.addEventListener("click", () => { view.filter = b.dataset.cat; renderHome(); }));
     renderFeed();
   }
@@ -870,10 +930,14 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   function renderFeed() {
     const feed = $("#feed"); if (!feed) return;
     const q = view.query.trim().toLowerCase();
+    const plain = !q && !view.filter;
     let list = sorted(articles).filter(a => !view.filter || a.rubrik === view.filter);
     if (q) list = list.filter(a => [a.title, a.authors, a.keywords, a.abstract, a.rubrik, a.body].join(" ").toLowerCase().includes(q));
-    $("#feed-title").textContent = q ? 'Hasil pencarian "' + view.query.trim() + '"' : view.filter || "Semua Tulisan";
+    // On the plain home view the featured piece is already shown above; don't repeat it.
+    if (plain && view.leadId) list = list.filter(a => a.id !== view.leadId);
+    $("#feed-title").textContent = q ? 'Hasil pencarian "' + view.query.trim() + '"' : view.filter || (view.leadId ? "Tulisan Lainnya" : "Semua Tulisan");
     $("#feed-count").textContent = list.length + " tulisan";
+    $("#feed-section").hidden = plain && !!view.leadId && !list.length;
     const status = statusBox();
     if (status && !list.length) { feed.innerHTML = status; return; }
     feed.innerHTML = list.length ? list.map(cardHTML).join("") :
