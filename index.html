@@ -23,6 +23,7 @@
   --news-soft: #f6ead3;
   --accent-soft: #dcebe8;
   --danger: #b3261e;
+  --like: #d0364f;
   --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
   --font-body: "Literata", Georgia, "Times New Roman", serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
@@ -32,10 +33,11 @@
   :root:not([data-theme="light"]) {
     --bg: #0f1615; --surface: #172120; --ink: #e5ecea; --muted: #9aa9a6; --line: #2a3735;
     --accent: #5cc2b5; --accent-ink: #062521; --news: #e8b04d; --news-soft: #3a2c12; --accent-soft: #163a36;
-    --danger: #ff8a80; color-scheme: dark;
+    --danger: #ff8a80; --like: #ff7088; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
+  --like: #ff7088;
   --bg: #0f1615; --surface: #172120; --ink: #e5ecea; --muted: #9aa9a6; --line: #2a3735;
   --accent: #5cc2b5; --accent-ink: #062521; --news: #e8b04d; --news-soft: #3a2c12; --accent-soft: #163a36;
   --danger: #ff8a80; color-scheme: dark;
@@ -257,6 +259,24 @@ legend { font-family: var(--font-display); font-weight: 700; padding: 0 6px; }
 .article.poem .section-break { margin: 2.4em 0 2.2em; }
 .article.poem .rail { position: static; width: 100%; max-width: 640px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; }
 #drop-pdf { margin-bottom: 4px; }
+
+/* ---------- Like & share ---------- */
+.actions { display: flex; gap: 12px; align-items: center; margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); }
+.article.poem .actions { justify-content: center; max-width: 360px; margin-inline: auto; }
+.act { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; min-width: 46px; padding: 0 14px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer;
+  font-family: var(--font-mono); font-size: .92rem; font-variant-numeric: tabular-nums; transition: border-color .15s, background .15s, color .15s; }
+.act:hover { border-color: var(--ink); }
+.act:disabled { cursor: progress; }
+.act svg { width: 21px; height: 21px; flex: none; }
+.act svg path, .act svg circle, .act svg line { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.act-like[aria-pressed="true"] { color: var(--like); border-color: color-mix(in srgb, var(--like) 45%, var(--line)); background: color-mix(in srgb, var(--like) 9%, var(--surface)); }
+.act-like[aria-pressed="true"] svg path { fill: currentColor; }
+.act-count:empty { display: none; }
+@keyframes like-pop { 0% { transform: scale(1); } 45% { transform: scale(1.3); } 100% { transform: scale(1); } }
+.act-like.pop svg { animation: like-pop .32s ease-out; }
+@media (prefers-reduced-motion: reduce) { .act-like.pop svg { animation: none; } }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- Inbox ---------- */
 .inbox { display: grid; gap: 16px; }
@@ -993,9 +1013,13 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         "</section>" : "") +
         '<div class="prose" id="prose">' + (legacyPdf ? '<p class="meta">Menyiapkan isi tulisan…</p>' : isPoem(a) ? renderPoem(a.body) : renderBody(a.body)) + "</div>" +
         (refList.length ? '<section class="refs"><h2>Daftar Pustaka</h2><ol>' + refList.map(r => "<li>" + esc(r) + "</li>").join("") + "</ol></section>" : "") +
+        '<div class="actions" role="group" aria-label="Tanggapi tulisan ini">' +
+          '<button class="act act-like" type="button" id="btn-like" aria-pressed="false" aria-label="Suka" title="Suka"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21.2l7.8-7.7 1-1.1a5.5 5.5 0 0 0 0-7.8z"/></svg><span class="act-count" id="like-count"></span></button>' +
+          '<button class="act" type="button" id="btn-share" aria-label="Bagikan" title="Bagikan"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg></button>' +
+          '<span class="sr-only" id="act-live" aria-live="polite"></span>' +
+        "</div>" +
       "</div>" +
       '<aside class="rail">' +
-        '<div class="panel"><h3>Kutip tulisan ini (APA)</h3><div class="cite-box" id="cite">' + esc(citation(a)) + '</div><button class="btn btn-sm" type="button" id="btn-cite">Salin kutipan</button></div>' +
         (hasInfo ? '<div class="panel"><h3>Informasi terbitan</h3><dl>' +
           (a.volume ? "<dt>Volume</dt><dd>" + esc(a.volume) + "</dd>" : "") +
           (a.issue ? "<dt>Nomor</dt><dd>" + esc(a.issue) + "</dd>" : "") +
@@ -1054,7 +1078,64 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         }
       });
     }
-    const c = $("#btn-cite"); if (c) c.addEventListener("click", () => copyText(citation(a), $("#cite")));
+    wireActions(a);
+  }
+
+  /* ---------- Like & share ----------
+     Likes are counted by the same Apps Script web app that receives submissions (actions "like" and
+     "likes"). Each browser remembers which pieces it liked, so a reader can like once and take it back.
+     If the script is older and doesn't know these actions, or the site has no inbox, liking still
+     works for that reader but no shared count is shown. */
+  const LIKED_KEY = "muarakata-liked";
+  function likedIds() { try { return new Set(JSON.parse(localStorage.getItem(LIKED_KEY) || "[]")); } catch (e) { return new Set(); } }
+  function setLiked(id, on) { const s = likedIds(); if (on) s.add(id); else s.delete(id); lsSet(LIKED_KEY, JSON.stringify([...s])); }
+  const likeCounts = {};
+  const shareUrl = (a) => location.href.split("#")[0] + "#artikel-" + encodeURIComponent(a.id);
+
+  function wireActions(a) {
+    const btn = $("#btn-like"), countEl = $("#like-count"), live = $("#act-live"), share = $("#btn-share");
+    if (!btn) return;
+    const online = () => mode === "github" && !!submitUrl;
+    const paint = () => {
+      const on = likedIds().has(a.id);
+      btn.setAttribute("aria-pressed", String(on));
+      btn.setAttribute("aria-label", on ? "Batal suka" : "Suka");
+      btn.title = on ? "Batal suka" : "Suka";
+      const n = likeCounts[a.id];
+      countEl.textContent = typeof n === "number" && n > 0 ? n.toLocaleString("id-ID") : "";
+    };
+    paint();
+    if (online() && typeof likeCounts[a.id] !== "number") {
+      inbox({ action: "likes", ids: [a.id] })
+        .then(r => { likeCounts[a.id] = Number((r.likes || {})[a.id]) || 0; if (btn.isConnected) paint(); })
+        .catch(() => {});
+    }
+    btn.addEventListener("click", async () => {
+      const on = !likedIds().has(a.id);
+      setLiked(a.id, on);
+      if (typeof likeCounts[a.id] === "number") likeCounts[a.id] = Math.max(0, likeCounts[a.id] + (on ? 1 : -1));
+      paint();
+      btn.classList.remove("pop"); if (on) { void btn.offsetWidth; btn.classList.add("pop"); }
+      live.textContent = on ? "Anda menyukai tulisan ini" : "Suka dibatalkan";
+      if (!online()) return;
+      btn.disabled = true;
+      try {
+        const r = await inbox({ action: "like", id: a.id, undo: !on });
+        if (typeof r.likes === "number") likeCounts[a.id] = r.likes;
+      } catch (e) { /* the reader's own like still stands in this browser */ }
+      btn.disabled = false;
+      if (btn.isConnected) paint();
+    });
+    share.addEventListener("click", async () => {
+      const url = shareUrl(a);
+      const data = { title: a.title, text: a.title + " oleh " + authorLine(a) + " · Muara Kata", url };
+      if (navigator.share) {
+        try { await navigator.share(data); return; }
+        catch (e) { if (e && e.name === "AbortError") return; /* refused here: fall back to copying */ }
+      }
+      try { await navigator.clipboard.writeText(url); toast("Tautan disalin. Tempel untuk membagikan."); }
+      catch (e) { toast("Salin tautan ini: " + url); }
+    });
   }
 
   const DEFAULT_CATS = ["Cerpen", "Puisi", "Esai", "Opini", "Ide & Gagasan", "Catatan Perjalanan", "Artikel Ilmiah", "Berita"];

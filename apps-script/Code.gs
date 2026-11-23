@@ -34,6 +34,8 @@ function doPost(e) {
   try {
     var req = JSON.parse(e.postData.contents);
     if (req.action === 'submit') return json_(submit_(req));
+    if (req.action === 'like') return json_(like_(req));
+    if (req.action === 'likes') return json_(likes_(req));
 
     var key = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
     if (!key || req.key !== key) return json_({ ok: false, error: 'kunci' });
@@ -91,6 +93,38 @@ function decode_(b64, magic) {
     if ((bytes[i] & 0xFF) !== magic[i]) return null;
   }
   return bytes;
+}
+
+/* ---------- Tombol suka: jumlah suka per tulisan, disimpan di Script Properties ---------- */
+function likeKey_(id) {
+  return /^[A-Za-z0-9_-]{1,80}$/.test(String(id)) ? 'likes:' + id : null;
+}
+
+function like_(req) {
+  var key = likeKey_(req.id);
+  if (!key) return { ok: false, error: 'data' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(5000); // two readers liking at once must not overwrite each other
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var n = parseInt(props.getProperty(key) || '0', 10) || 0;
+    n = req.undo ? Math.max(0, n - 1) : n + 1;
+    props.setProperty(key, String(n));
+    return { ok: true, id: String(req.id), likes: n };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function likes_(req) {
+  var ids = Array.isArray(req.ids) ? req.ids.slice(0, 200) : [];
+  var props = PropertiesService.getScriptProperties();
+  var out = {};
+  ids.forEach(function (id) {
+    var key = likeKey_(id);
+    if (key) out[id] = parseInt(props.getProperty(key) || '0', 10) || 0;
+  });
+  return { ok: true, likes: out };
 }
 
 function list_() {

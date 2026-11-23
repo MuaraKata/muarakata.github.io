@@ -44,6 +44,16 @@ Yang dibutuhkan: akun Google (Gmail) dan akses pengelola website (token GitHub).
 - Naskah yang diterima langsung masuk ke website. Rapikan isinya kapan saja lewat **Ubah tulisan**.
 - Berkas naskah yang sudah diputuskan dipindah ke Sampah di Google Drive.
 
+## Tombol suka (❤️)
+
+Skrip yang sama juga menghitung jumlah suka di setiap tulisan. Kalau Anda memasang skrip **sebelum** fitur ini ada, perbarui sekali supaya jumlah suka terlihat oleh semua pembaca:
+
+1. Buka proyek **Tandeallo Naskah** di https://script.google.com.
+2. Hapus isi `Code.gs` di editor, lalu tempel isi terbaru dari [`Code.gs`](Code.gs) (di HP: buka https://raw.githubusercontent.com/MuaraKata/muarakata.github.io/main/apps-script/Code.gs, pilih semua, salin). Klik **Simpan**.
+3. Klik **Terapkan → Kelola penerapan → ✏️ Edit**, pilih **Versi: Versi baru**, lalu klik **Terapkan**. URL aplikasi web tetap sama.
+
+Sebelum diperbarui, tombol suka tetap bisa diketuk, tetapi hanya tercatat di browser pembaca itu dan angkanya tidak tampil.
+
 ## Memperbarui skrip
 
 Jika `Code.gs` di repositori berubah, tempel versi barunya ke editor, lalu klik **Terapkan → Kelola penerapan → ✏️ Edit → Versi: Versi baru → Terapkan**. URL aplikasi web tetap sama, jadi tidak perlu mengubah apa pun di website.

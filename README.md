@@ -41,7 +41,7 @@ Naskah masuk disimpan di Google Drive pengelola lewat Google Apps Script (gratis
   - Untuk puisi, isi kategori **Puisi** lebih dulu supaya setiap baris tetap terjaga.
   - PDF hasil pindai (berupa gambar) tidak punya teks, jadi isinya perlu diketik.
 - Bagian tambahan opsional untuk tulisan ilmiah: afiliasi, kata kunci, dan daftar pustaka.
-- Setiap tulisan punya **kutipan APA** yang bisa disalin.
+- Di bawah setiap tulisan ada tombol ikon **suka** (❤️, jumlahnya terlihat semua pembaca) dan **bagikan** (membuka menu bagikan di HP, atau menyalin tautan di komputer). Jumlah suka dihitung oleh Google Apps Script yang sama dengan kotak masuk naskah.
 - Format isi: baris kosong = paragraf baru, `## ` = subjudul, `> ` = kutipan, `**tebal**`, `*miring*`.
 
 ## Cara lain membuka
