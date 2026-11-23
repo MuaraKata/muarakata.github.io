@@ -1,7 +1,7 @@
 {
   "app": "tandeallo",
   "version": 1,
-  "updated": "2026-11-22T05:36:34.611589+00:00",
+  "updated": "2026-11-23T14:25:06.904Z",
   "articles": [
     {
       "id": "saksi-di-bangku-pinggir",
@@ -34,6 +34,28 @@
       "keywords": "",
       "references": "",
       "coverPath": ""
+    },
+    {
+      "id": "amwtcxzwvtkk8h",
+      "created": 1795443905551,
+      "contoh": false,
+      "type": "tulisan",
+      "title": "Hhh",
+      "authors": "Jj",
+      "rubrik": "Jj",
+      "date": "2026-11-23",
+      "abstract": "Jj",
+      "body": "Jj",
+      "affiliation": "",
+      "volume": "",
+      "issue": "",
+      "pages": "",
+      "doi": "",
+      "keywords": "",
+      "references": "",
+      "pdfName": "",
+      "coverPath": "",
+      "pdfPath": ""
     }
   ]
 }
