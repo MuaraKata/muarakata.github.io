@@ -29,7 +29,7 @@ Setiap kali artikel diterbitkan, diubah, atau dihapus, halaman membuat *commit* 
 
 ## Kiriman naskah dari pengunjung
 
-Siapa pun bisa mengirim tulisan lewat menu **Kirim Tulisan** tanpa membuat akun. Naskah **tidak tampil** di website sampai pengelola menerimanya di halaman **Tinjau Naskah**.
+Penulis mendaftar dan masuk lewat menu ☰ → **Penulis**, lalu mengirim tulisan lewat menu **Kirim Tulisan** dan memantau statusnya di **Tulisan saya**. (Sebelum skrip Apps Script diperbarui, siapa pun bisa mengirim tanpa akun.) Penulis mengirim tulisan tanpa membuat akun. Naskah **tidak tampil** di website sampai pengelola menerimanya di halaman **Tinjau Naskah**.
 
 Naskah masuk disimpan di Google Drive pengelola lewat Google Apps Script (gratis). Cara memasangnya ada di [`apps-script/PANDUAN.md`](apps-script/PANDUAN.md). Menu **Kirim Tulisan** baru muncul setelah kotak masuk disambungkan.
 

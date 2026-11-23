@@ -54,6 +54,16 @@ Skrip yang sama juga menghitung jumlah suka di setiap tulisan. Kalau Anda memasa
 
 Sebelum diperbarui, tombol suka tetap bisa diketuk, tetapi hanya tercatat di browser pembaca itu dan angkanya tidak tampil.
 
+## Akun penulis
+
+Pengirim tulisan masuk dengan akun penulis: mereka mendaftar sendiri (nama, email, sandi) lewat menu ☰ → **Penulis**, lalu nama dan email mereka terisi otomatis saat mengirim. Di **Tulisan saya** mereka melihat status setiap tulisan (*Menunggu tinjauan*, *Diterbitkan*, *Tidak diterbitkan*).
+
+- Akun disimpan di **Script Properties** proyek Apps Script Anda. Sandi tidak pernah disimpan, hanya sidik acaknya (hash).
+- Lima kali salah sandi mengunci akun itu 15 menit.
+- **Lupa sandi:** skrip mengirim kode 6 angka ke email penulis dari akun Gmail Anda. Gmail pribadi membatasi sekitar 100 email per hari.
+
+Fitur ini butuh skrip terbaru. Perbarui dengan cara yang sama seperti di bagian **Tombol suka** di atas. Sebelum diperbarui, formulir Kirim Tulisan tetap berjalan seperti biasa tanpa akun.
+
 ## Memperbarui skrip
 
 Jika `Code.gs` di repositori berubah, tempel versi barunya ke editor, lalu klik **Terapkan → Kelola penerapan → ✏️ Edit → Versi: Versi baru → Terapkan**. URL aplikasi web tetap sama, jadi tidak perlu mengubah apa pun di website.

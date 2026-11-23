@@ -36,6 +36,13 @@ function doPost(e) {
     if (req.action === 'submit') return json_(submit_(req));
     if (req.action === 'like') return json_(like_(req));
     if (req.action === 'likes') return json_(likes_(req));
+    if (req.action === 'accounts') return json_({ ok: true, accounts: true });
+    if (req.action === 'register') return json_(register_(req));
+    if (req.action === 'login') return json_(login_(req));
+    if (req.action === 'me') return json_(me_(req));
+    if (req.action === 'my_submissions') return json_(mySubmissions_(req));
+    if (req.action === 'reset_request') return json_(resetRequest_(req));
+    if (req.action === 'reset_confirm') return json_(resetConfirm_(req));
 
     var key = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY');
     if (!key || req.key !== key) return json_({ ok: false, error: 'kunci' });
@@ -58,8 +65,10 @@ function submit_(req) {
     art[k] = String(src[k] || '').trim().slice(0, k === 'body' ? MAX_BODY_CHARS : MAX_FIELD_CHARS);
   });
   if (art.type !== 'jurnal') art.type = 'berita';
-  var email = String(req.email || '').trim().slice(0, 200);
-  if (!art.title || !art.authors || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, error: 'data' };
+  var user = sessionUser_(req.session);
+  if (!user) return { ok: false, error: 'sesi' }; // only signed-in writers may send
+  var email = user.email;
+  if (!art.title || !art.authors) return { ok: false, error: 'data' };
 
   var pdf = req.pdf ? decode_(req.pdf, [0x25, 0x50, 0x44, 0x46]) : null; // %PDF
   var cover = req.cover ? decode_(req.cover, [0xFF, 0xD8]) : null;      // JPEG
@@ -70,7 +79,7 @@ function submit_(req) {
   var folder = folder_();
   var rec = {
     id: id, status: 'menunggu', submitted: new Date().toISOString(), article: art,
-    name: String(req.name || '').trim().slice(0, 200), email: email,
+    name: user.name, email: email, userEmail: email,
     pdfName: '', pdfFileId: '', coverFileId: ''
   };
   if (pdf) {
@@ -93,6 +102,136 @@ function decode_(b64, magic) {
     if ((bytes[i] & 0xFF) !== magic[i]) return null;
   }
   return bytes;
+}
+
+/* ---------- Akun penulis ----------
+   Accounts live in Script Properties as "user:<email>" with a salted, iterated SHA-256 hash of the
+   password (never the password). Sessions are stateless signed tokens (HMAC with a secret kept in
+   Script Properties) that carry the email, the account's version and an expiry; changing the
+   password bumps the version, which signs out every old session. */
+var SESSION_DAYS = 30;
+var HASH_ROUNDS = 2000;
+
+function normEmail_(e) { return String(e || '').trim().toLowerCase().slice(0, 200); }
+function validEmail_(e) { return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e); }
+function getUser_(email) {
+  var v = PropertiesService.getScriptProperties().getProperty('user:' + email);
+  return v ? JSON.parse(v) : null;
+}
+function putUser_(u) { PropertiesService.getScriptProperties().setProperty('user:' + u.email, JSON.stringify(u)); }
+function b64url_(bytes) { return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/, ''); }
+function hash_(salt, pass) {
+  var h = salt + ':' + pass;
+  for (var i = 0; i < HASH_ROUNDS; i++) h = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, h + ':' + salt));
+  return h;
+}
+function secret_() {
+  var props = PropertiesService.getScriptProperties();
+  var s = props.getProperty('SESSION_SECRET');
+  if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); props.setProperty('SESSION_SECRET', s); }
+  return s;
+}
+function sign_(payload) { return b64url_(Utilities.computeHmacSha256Signature(payload, secret_())); }
+function newSession_(u) {
+  var payload = b64url_(Utilities.newBlob(JSON.stringify({ e: u.email, v: u.ver, x: Date.now() + SESSION_DAYS * 864e5 })).getBytes());
+  return payload + '.' + sign_(payload);
+}
+function sessionUser_(token) {
+  var parts = String(token || '').split('.');
+  if (parts.length !== 2 || sign_(parts[0]) !== parts[1]) return null;
+  var data;
+  try { data = JSON.parse(Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString()); } catch (e) { return null; }
+  if (!data || data.x < Date.now()) return null;
+  var u = getUser_(data.e);
+  return u && u.ver === data.v ? u : null;
+}
+function publicUser_(u, withSession) {
+  var out = { ok: true, name: u.name, email: u.email };
+  if (withSession) out.session = newSession_(u);
+  return out;
+}
+function tooMany_(key, limit) {
+  var cache = CacheService.getScriptCache();
+  return (parseInt(cache.get(key) || '0', 10) || 0) >= limit;
+}
+function countFail_(key) {
+  var cache = CacheService.getScriptCache();
+  cache.put(key, String((parseInt(cache.get(key) || '0', 10) || 0) + 1), 900); // 15 minutes
+}
+
+function register_(req) {
+  var email = normEmail_(req.email), name = String(req.name || '').trim().slice(0, 120), pass = String(req.password || '');
+  if (!name || !validEmail_(email)) return { ok: false, error: 'data' };
+  if (pass.length < 8 || pass.length > 200) return { ok: false, error: 'sandi' };
+  var lock = LockService.getScriptLock(); lock.waitLock(5000);
+  try {
+    if (getUser_(email)) return { ok: false, error: 'terdaftar' };
+    var salt = Utilities.getUuid();
+    var u = { email: email, name: name, salt: salt, hash: hash_(salt, pass), ver: 1, created: new Date().toISOString() };
+    putUser_(u);
+    return publicUser_(u, true);
+  } finally { lock.releaseLock(); }
+}
+
+function login_(req) {
+  var email = normEmail_(req.email), pass = String(req.password || '');
+  if (tooMany_('fail:' + email, 5)) return { ok: false, error: 'terkunci' };
+  var u = getUser_(email);
+  if (!u || hash_(u.salt, pass) !== u.hash) { countFail_('fail:' + email); return { ok: false, error: 'salah' }; }
+  CacheService.getScriptCache().remove('fail:' + email);
+  return publicUser_(u, true);
+}
+
+function me_(req) {
+  var u = sessionUser_(req.session);
+  return u ? publicUser_(u, false) : { ok: false, error: 'sesi' };
+}
+
+function mySubmissions_(req) {
+  var u = sessionUser_(req.session);
+  if (!u) return { ok: false, error: 'sesi' };
+  var items = [];
+  var files = folder_().getFiles();
+  while (files.hasNext()) {
+    var f = files.next();
+    if (!/\.json$/.test(f.getName())) continue;
+    var rec = JSON.parse(f.getBlob().getDataAsString());
+    if (rec.userEmail !== u.email) continue;
+    items.push({ id: rec.id, title: rec.article.title, rubrik: rec.article.rubrik, status: rec.status, submitted: rec.submitted, decided: rec.decided || '' });
+  }
+  items.sort(function (x, y) { return x.submitted < y.submitted ? 1 : -1; });
+  return { ok: true, items: items };
+}
+
+function resetRequest_(req) {
+  var email = normEmail_(req.email);
+  var u = validEmail_(email) ? getUser_(email) : null;
+  // Same answer whether or not the account exists, so the form can't be used to discover who has one.
+  if (u && !tooMany_('mail:' + email, 3)) {
+    var code = String(Math.floor(100000 + Math.random() * 900000));
+    CacheService.getScriptCache().put('reset:' + email, code, 900);
+    countFail_('mail:' + email);
+    try {
+      MailApp.sendEmail(email, 'Kode atur ulang sandi Muara Kata',
+        'Halo ' + u.name + ',\n\nKode untuk mengatur ulang sandi akun penulis Muara Kata Anda:\n\n    ' + code +
+        '\n\nKode ini berlaku 15 menit. Abaikan email ini kalau Anda tidak memintanya.');
+    } catch (e) {}
+  }
+  return { ok: true };
+}
+
+function resetConfirm_(req) {
+  var email = normEmail_(req.email), pass = String(req.password || '');
+  if (pass.length < 8 || pass.length > 200) return { ok: false, error: 'sandi' };
+  if (tooMany_('rfail:' + email, 5)) return { ok: false, error: 'terkunci' };
+  var cache = CacheService.getScriptCache();
+  var code = cache.get('reset:' + email);
+  var u = getUser_(email);
+  if (!u || !code || String(req.code || '').trim() !== code) { countFail_('rfail:' + email); return { ok: false, error: 'kode' }; }
+  cache.remove('reset:' + email);
+  u.salt = Utilities.getUuid(); u.hash = hash_(u.salt, pass); u.ver = (u.ver || 1) + 1; // signs out old sessions
+  putUser_(u);
+  return publicUser_(u, true);
 }
 
 /* ---------- Tombol suka: jumlah suka per tulisan, disimpan di Script Properties ---------- */
