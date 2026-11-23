@@ -260,6 +260,27 @@ legend { font-family: var(--font-display); font-weight: 700; padding: 0 6px; }
 .article.poem .rail { position: static; width: 100%; max-width: 640px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; }
 #drop-pdf { margin-bottom: 4px; }
 
+/* ---------- Floating menu (top left) ---------- */
+.fab-menu { position: fixed; z-index: 40; top: calc(env(safe-area-inset-top, 0px) + 12px); left: max(14px, env(safe-area-inset-left, 0px)); }
+.fab { width: 44px; height: 44px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 4px 16px rgba(0, 0, 0, .08); transition: border-color .15s; }
+.fab:hover, .fab[aria-expanded="true"] { border-color: var(--ink); }
+.fab svg { width: 22px; height: 22px; }
+.fab svg line, .menu-item svg path, .menu-item svg circle { fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.menu-panel { position: absolute; top: 54px; left: 0; width: min(290px, calc(100vw - 28px)); background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 12px; padding: 8px; display: grid; gap: 4px; box-shadow: 0 12px 36px rgba(0, 0, 0, .14); }
+.menu-group { display: grid; gap: 2px; padding: 4px 0; }
+.menu-group + .menu-group { border-top: 1px solid var(--line); padding-top: 8px; }
+.menu-label { font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); padding: 4px 10px; }
+.menu-item { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 8px; text-decoration: none; font-family: var(--font-display); font-weight: 500; }
+.menu-item:hover, .menu-item:focus-visible { background: var(--bg); }
+.menu-item svg { width: 20px; height: 20px; flex: none; color: var(--accent); }
+.menu-note { margin: 0; padding: 4px 10px 8px; font-size: .85rem; color: var(--muted); }
+/* keep the header clear of the floating button where they would overlap */
+/* Only as much as needed: full 72px on narrow screens, shrinking to the normal gutter once the centred
+   1180px column leaves room beside the button. */
+.masthead .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px) + 72px - max(0px, (100vw - 1180px) / 2)); }
+
 /* ---------- Like & share ---------- */
 .actions { display: flex; gap: 12px; align-items: center; margin-top: 44px; padding-top: 22px; border-top: 1px solid var(--line); }
 .article.poem .actions { justify-content: center; max-width: 360px; margin-inline: auto; }
@@ -317,6 +338,21 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 </head>
 <body>
 
+<div class="fab-menu" id="fab-menu" hidden>
+  <button class="fab" type="button" id="menu-btn" aria-haspopup="true" aria-expanded="false" aria-controls="menu-panel" aria-label="Buka menu" title="Menu"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg></button>
+  <div class="menu-panel" id="menu-panel" hidden>
+    <div class="menu-group" id="menu-contact" hidden>
+      <span class="menu-label">Kontak</span>
+      <a class="menu-item" id="menu-fb" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 8.5V7c0-.8.5-1.3 1.3-1.3H17V2.5h-2.6C11.7 2.5 10.5 4 10.5 6.6v1.9H8v3.3h2.5V21.5H14v-9.7h2.6l.4-3.3z"/></svg><span>Hubungi</span></a>
+      <p class="menu-note" id="menu-fb-missing" hidden>Tautan Facebook belum diatur. <a href="#masuk">Atur di halaman Pengelola</a>.</p>
+    </div>
+    <div class="menu-group" id="menu-admin" hidden>
+      <span class="menu-label">Pengelola</span>
+      <a class="menu-item" id="menu-admin-link" href="#masuk"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20.5c1.5-3.6 4.5-5.5 8-5.5s6.5 1.9 8 5.5"/></svg><span id="menu-admin-text">Masuk pengelola</span></a>
+    </div>
+  </div>
+</div>
+
 <header class="masthead">
   <div class="wrap">
     <a class="brand" href="#">
@@ -338,7 +374,6 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   <div class="wrap">
     <p id="storage-note">Muara Kata: tempat semua cerita bermuara.</p>
     <div class="foot-actions">
-      <a class="btn btn-sm" id="btn-admin" href="#masuk" hidden>Masuk pengelola</a>
       <button class="btn btn-sm" id="btn-export" type="button" hidden>Ekspor cadangan (.json)</button>
       <button class="btn btn-sm" id="btn-copy-backup" type="button" hidden>Salin cadangan</button>
       <label class="btn btn-sm" for="import-file" hidden>Impor cadangan</label>
@@ -377,6 +412,8 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
   const CONFIG = "content/config.json", INBOX_KEY = "tandeallo-inbox-key";
   const INBOX_URL_RE = /^https:\/\/script\.google\.com\/(a\/macros\/[^/]+|macros)\/s\/[\w-]+\/exec$/;
   let submitUrl = "";
+  let contactUrl = "";  // Facebook page/profile for "Hubungi", set on the Pengelola page
+  const FB_URL_RE = /^https:\/\/((www|m|web)\.)?(facebook\.com|fb\.com|fb\.me)\/[^\s"'<>]+$/i;
   async function inbox(payload) {
     let r;
     try {
@@ -1036,9 +1073,6 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
           "</div>" +
           '<p class="error" id="del-error" hidden style="margin:0"></p>' +
         "</div>" : "") +
-        (!canWrite && mode === "github" ? '<div class="panel"><h3>Kelola</h3>' +
-          '<span style="font-size:.88rem">Untuk mengubah atau menghapus tulisan ini, masuk dulu sebagai pengelola.</span>' +
-          '<a class="btn btn-sm" href="#masuk">Masuk pengelola</a></div>' : "") +
       "</aside></article>";
 
     // Older entries stored only a PDF: show its text as a web page.
@@ -1561,6 +1595,11 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     if (gh) {
       app.innerHTML = '<div class="wrap"><div class="form-page"><h1>Pengelola</h1><p>Anda masuk sebagai pengelola repositori <strong>' + esc(gh.owner + "/" + gh.repo) + '</strong> (branch ' + esc(gh.branch) + ').</p>' +
         '<div class="form-actions"><a class="btn btn-primary" href="#kirim">+ Tulis</a><a class="btn" href="#tinjau">Tinjau Naskah</a><button class="btn" type="button" id="btn-logout">Keluar</button></div>' +
+        '<form class="submit" id="contact-form" novalidate style="margin-top:28px"><fieldset><legend>Kontak</legend>' +
+          '<p style="margin:0;font-size:.95rem">Tautan untuk tombol <strong>Hubungi</strong> di menu ☰ (kiri atas). Kosongkan untuk menyembunyikannya.</p>' +
+          '<div class="field"><label for="fb-url">Tautan Facebook</label><input type="url" id="fb-url" placeholder="https://www.facebook.com/namahalaman" value="' + esc(contactUrl) + '"><span class="hint">Halaman atau profil Facebook Anda</span></div>' +
+        '</fieldset><p class="error" id="contact-error" hidden></p>' +
+        '<div class="form-actions"><button class="btn btn-primary" type="submit" id="btn-contact">Simpan tautan</button></div></form>' +
         '<form class="submit" id="pass-form" novalidate style="margin-top:28px"><fieldset><legend>Sandi pengelola</legend>' +
           '<p style="margin:0;font-size:.95rem">' + (adminSeal
             ? "Sandi pengelola <strong>sudah aktif</strong>. Isi kolom di bawah untuk menggantinya."
@@ -1577,6 +1616,21 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         try { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(INBOX_KEY); } catch (e) {}
         gh = null; canWrite = false; adminPass = "";
         await loadStatic(); applyModeUI(); toast("Anda sudah keluar"); location.hash = "";
+      });
+      $("#contact-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const err = $("#contact-error"), btn = $("#btn-contact");
+        let url = $("#fb-url").value.trim();
+        if (url && !/^https?:\/\//i.test(url)) url = "https://" + url;
+        url = url.replace(/^http:\/\//i, "https://");
+        if (url && !FB_URL_RE.test(url)) { err.textContent = "Masukkan tautan Facebook, misalnya https://www.facebook.com/namahalaman"; err.hidden = false; return; }
+        err.hidden = true; btn.disabled = true; btn.textContent = "Menyimpan…";
+        try {
+          await ghUpdateConfig(cfg => { if (url) cfg.facebook = url; else delete cfg.facebook; }, url ? "Atur tautan Facebook" : "Hapus tautan Facebook");
+          contactUrl = url; applyModeUI(); $("#fb-url").value = url;
+          toast(url ? "Tersimpan. Tombol Hubungi muncul untuk pengunjung dalam 1–2 menit." : "Tautan dihapus.");
+        } catch (ex) { err.textContent = ex && ex.code ? ghErrorText(ex) : "Gagal menyimpan. Coba lagi."; err.hidden = false; }
+        btn.disabled = false; btn.textContent = "Simpan tautan";
       });
       $("#pass-form").addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -1765,9 +1819,16 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     else if (mode === "github") note.textContent = canWrite
       ? "Anda masuk sebagai pengelola. Tulisan yang diterbitkan disimpan ke repositori GitHub dan muncul untuk semua pengunjung dalam 1–2 menit."
       : "Muara Kata: tempat semua cerita bermuara. Cerita, puisi, esai, ide, dan tulisan ilmiah dari banyak penulis, dalam satu tempat.";
-    const adm = $("#btn-admin");
-    adm.hidden = mode !== "github";
-    adm.textContent = gh && canWrite ? "Pengelola" : signingIn ? "Memeriksa…" : "Masuk pengelola";
+    // Floating menu: Kontak (Hubungi -> Facebook) and Pengelola. Only the GitHub-hosted site has either.
+    const github = mode === "github";
+    $("#menu-contact").hidden = !(github && (contactUrl || canWrite));
+    $("#menu-fb").hidden = !contactUrl;
+    if (contactUrl) $("#menu-fb").href = contactUrl;
+    $("#menu-fb-missing").hidden = !!contactUrl || !canWrite;
+    $("#menu-admin").hidden = !github;
+    $("#menu-admin-text").textContent = gh && canWrite ? "Pengelola" : signingIn ? "Memeriksa…" : "Masuk pengelola";
+    $("#fab-menu").hidden = !github;
+    if (!github) closeMenu();
   }
 
   async function loadStatic() {
@@ -1781,6 +1842,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
         if (c.ok) {
           const cfg = await c.json();
           const url = String(cfg.submitUrl || ""); submitUrl = INBOX_URL_RE.test(url) ? url : "";
+          const fb = String(cfg.facebook || ""); contactUrl = FB_URL_RE.test(fb) ? fb : "";
           const seal = cfg.admin;
           adminSeal = seal && seal.v === 1 && seal.salt && seal.iv && seal.data ? seal : null;
         }
@@ -1788,6 +1850,23 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       return true;
     } catch (e) { return false; }
   }
+
+  /* ================= Floating menu ================= */
+  function closeMenu() {
+    const panel = $("#menu-panel"), btn = $("#menu-btn");
+    if (!panel || panel.hidden) return;
+    panel.hidden = true; btn.setAttribute("aria-expanded", "false"); btn.setAttribute("aria-label", "Buka menu");
+  }
+  function openMenu() {
+    const panel = $("#menu-panel"), btn = $("#menu-btn");
+    panel.hidden = false; btn.setAttribute("aria-expanded", "true"); btn.setAttribute("aria-label", "Tutup menu");
+    const first = panel.querySelector(".menu-item:not([hidden])"); if (first) first.focus();
+  }
+  $("#menu-btn").addEventListener("click", () => { if ($("#menu-panel").hidden) openMenu(); else closeMenu(); });
+  $("#menu-panel").addEventListener("click", (e) => { if (e.target.closest("a")) closeMenu(); });
+  document.addEventListener("click", (e) => { if (!e.target.closest("#fab-menu")) closeMenu(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#menu-panel").hidden) { closeMenu(); $("#menu-btn").focus(); } });
+  window.addEventListener("hashchange", closeMenu);
 
   /* ================= Boot ================= */
   (async function boot() {
