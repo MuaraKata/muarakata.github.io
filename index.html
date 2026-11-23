@@ -457,10 +457,14 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     if (accounts !== null) return Promise.resolve(accounts);
     if (mode !== "github" || !submitUrl) { accounts = false; return Promise.resolve(false); }
     if (!accountsCheck) {
-      // An older script answers "kunci"; any other failure also falls back to the no-login form, and a
-      // later "sesi" refusal from the script switches accounts back on.
+      // An older script answers "kunci" (and any other failure counts the same): sending stays closed,
+      // because only a signed-in writer may send.
       accountsCheck = inbox({ action: "accounts" }).then(() => true, () => false)
-        .then(v => { accounts = v; accountsCheck = null; applyModeUI(); return v; });
+        .then(v => {
+          accounts = v; accountsCheck = null; applyModeUI();
+          if (!v && /^#?$/.test(location.hash)) route(false); // drop the "Kirim Tulisan" invitation from the home page
+          return v;
+        });
     }
     return accountsCheck;
   }
@@ -551,7 +555,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
       checkAccounts().then(() => { if (location.hash === "#akun") renderAccount(); });
       return;
     }
-    if (!accounts) { page('<h1>Akun penulis</h1><div class="empty">Akun penulis belum aktif. Anda tetap bisa <a href="#kirim-naskah">mengirim tulisan</a> tanpa akun.</div>'); return; }
+    if (!accounts) { page('<h1>Akun penulis</h1><div class="empty">Akun penulis sedang disiapkan. Silakan kembali lagi nanti.</div>' + (canWrite ? '<p class="meta" style="margin-top:16px">Untuk pengelola: skrip Google Apps Script Anda belum mendukung akun penulis, atau versi barunya belum diterapkan. Perbarui skrip lalu pilih <strong>Terapkan → Kelola penerapan → Edit → Versi baru</strong>. Lihat <a href="https://github.com/' + (gh ? gh.owner + "/" + gh.repo : "MuaraKata/muarakata.github.io") + '/blob/main/apps-script/PANDUAN.md" target="_blank" rel="noopener">panduan</a>.</p>' : "")); return; }
     if (!writer) {
       page("<h1>Akun penulis</h1>" + authHTML("Masuk atau daftar untuk mengirim tulisan dan melihat status tulisan Anda."));
       wireAuth($("#auth"), () => renderAccount());
@@ -1109,7 +1113,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
     const invite = canWrite
       ? '<section class="wrap"><div class="invite"><div><h2>Tulis sesuatu hari ini</h2><p>Cerita, puisi, esai, atau ide. Semua bermuara di sini.</p></div><a class="btn btn-primary" href="#kirim">+ Tulis</a></div></section>'
-      : mode === "github" && submitUrl
+      : mode === "github" && submitUrl && accounts !== false
         ? '<section class="wrap"><div class="invite"><div><h2>Punya tulisan?</h2><p>Kirim cerita, puisi, esai, atau ide Anda ke Muara Kata. Setiap tulisan ditinjau redaksi sebelum terbit.</p></div><a class="btn btn-primary" href="#kirim-naskah">Kirim Tulisan</a></div></section>'
         : "";
 
@@ -1331,6 +1335,11 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
     if (sub && accounts === null) {
       app.innerHTML = '<div class="wrap" style="padding-block:48px"><div class="empty">Memuat…</div></div>';
       checkAccounts().then(() => { if (location.hash === "#kirim-naskah") renderForm(null, opts); });
+      return;
+    }
+    if (sub && !accounts) {
+      setNav("naskah");
+      app.innerHTML = '<div class="wrap"><div class="form-page"><h1>Kirim tulisan</h1><div class="empty">Pengiriman tulisan sedang disiapkan. Silakan kembali lagi nanti.</div>' + (canWrite ? '<p class="meta" style="margin-top:16px">Untuk pengelola: skrip Google Apps Script Anda belum mendukung akun penulis, atau versi barunya belum diterapkan. Perbarui skrip lalu pilih <strong>Terapkan → Kelola penerapan → Edit → Versi baru</strong>. Lihat <a href="https://github.com/' + (gh ? gh.owner + "/" + gh.repo : "MuaraKata/muarakata.github.io") + '/blob/main/apps-script/PANDUAN.md" target="_blank" rel="noopener">panduan</a>.</p>' : "") + "</div></div>";
       return;
     }
     if (sub && accounts && !writer) {
@@ -1984,7 +1993,7 @@ footer p { margin: 0; font-size: .88rem; color: var(--muted); max-width: 60ch; }
 
   function applyModeUI() {
     $('[data-nav="kirim"]').hidden = !canWrite;
-    $('[data-nav="naskah"]').hidden = !(mode === "github" && submitUrl);
+    $('[data-nav="naskah"]').hidden = !(mode === "github" && submitUrl && accounts !== false);
     $('[data-nav="tinjau"]').hidden = !(mode === "github" && canWrite);
     // Backups are a manager tool on the shared site; on a private copy (local mode) they are the only way to move data.
     const backups = mode === "local" || canWrite;
